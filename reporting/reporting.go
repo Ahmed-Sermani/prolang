@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// safe global
+// safe
 var hadError = false
 var hadRuntimeError = false
 var mu sync.Mutex

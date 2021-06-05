@@ -16,6 +16,7 @@ type ErrorExpressionInterpretation struct {
 	msg   string
 }
 
+// implementing the error interface
 func (e *ErrorExpressionInterpretation) Error() string {
 	if e.msg == "" {
 		e.msg = "error while interpreting expressions"
@@ -26,8 +27,6 @@ func (e *ErrorExpressionInterpretation) Error() string {
 type ErrorOpNumMismatch struct {
 	ErrorExpressionInterpretation
 }
-
-// implementing the error interface
 
 type Interpreter struct{}
 
@@ -55,7 +54,7 @@ func (inter *Interpreter) VisitLiteral(expr expressions.Literal) (interface{}, e
 // grouping node has a reference to an inner node for the expression contained inside the parentheses.
 // recursively evaluate that subexpression and return it.
 func (inter *Interpreter) VisitGrouping(expr expressions.Grouping) (interface{}, error) {
-	return inter.evaluate(expr)
+	return inter.evaluate(expr.Expr)
 }
 
 // evaluate the operand expression. Then apply the unary operator itself to the result of that.
