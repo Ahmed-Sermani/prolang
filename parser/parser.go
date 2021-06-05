@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Ahmed-Sermani/prolang/parser/expressions"
+	"github.com/Ahmed-Sermani/prolang/parser/statements"
 	"github.com/Ahmed-Sermani/prolang/reporting"
 	"github.com/Ahmed-Sermani/prolang/scanner"
 )
@@ -28,8 +29,46 @@ func New(tokens []expressions.Token) *Parser {
 }
 
 // start parsing
-func (p *Parser) Parse() (expressions.Experssion, error) {
-	return p.experssion()
+// prog           → statement* EOF ;
+func (p *Parser) Parse() ([]statements.Statement, error) {
+	statements := []statements.Statement{}
+	for !p.isAtEnd() {
+		statement, err := p.statement()
+		if err != nil {
+			return statements, err
+		}
+		statements = append(statements, statement)
+	}
+	return statements, nil
+}
+
+// statement      → exprStatement | printStatement ;
+func (p *Parser) statement() (statements.Statement, error) {
+	if p.match(scanner.PRINT) {
+		return p.printStatement()
+	}
+
+	return p.experssionStatement()
+}
+
+// exprStatement  → expression ";" ;
+func (p *Parser) printStatement() (statements.Statement, error) {
+	val, err := p.experssion()
+	if err != nil {
+		return nil, err
+	}
+	p.consume(scanner.SEMICOLON, "Expected ';' after expression.")
+	return statements.PrintStatement{Expr: val}, nil
+}
+
+// exprStatement  → expression ";" ;
+func (p *Parser) experssionStatement() (statements.Statement, error) {
+	val, err := p.experssion()
+	if err != nil {
+		return nil, err
+	}
+	p.consume(scanner.SEMICOLON, "Expected ';' after value.")
+	return statements.ExperssionStatement{Expr: val}, nil
 }
 
 // expression     → equality ;

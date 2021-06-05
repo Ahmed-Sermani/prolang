@@ -13,8 +13,6 @@ import (
 	"github.com/Ahmed-Sermani/prolang/scanner"
 )
 
-var HadError = false
-
 func main() {
 	if len(os.Args) > 2 {
 		log.Println("Usage: code [script]")
@@ -60,7 +58,7 @@ func run(source string) {
 	scanner := scanner.New(source)
 	tokens := scanner.ScanTokens()
 	p := parser.New(tokens)
-	expr, err := p.Parse()
+	stmts, err := p.Parse()
 	if err != nil || reporting.HadError() {
 		return
 	}
@@ -70,7 +68,7 @@ func run(source string) {
 		return
 	}
 	inter := interpreter.New()
-	inter.Interpret(expr)
+	inter.Interpret(stmts)
 	// pv := parser.PrintVisitor{}
 	// res, _ := pv.Print(expr)
 	// fmt.Println(res)

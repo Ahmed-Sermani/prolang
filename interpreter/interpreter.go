@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/Ahmed-Sermani/prolang/parser/expressions"
+	"github.com/Ahmed-Sermani/prolang/parser/statements"
 	"github.com/Ahmed-Sermani/prolang/reporting"
 	"github.com/Ahmed-Sermani/prolang/scanner"
 )
@@ -28,20 +29,28 @@ type ErrorOpNumMismatch struct {
 	ErrorExpressionInterpretation
 }
 
+// implement expression visitor and statement visitor interface
 type Interpreter struct{}
 
 func New() *Interpreter {
 	return &Interpreter{}
 }
 
-func (inter *Interpreter) Interpret(expr expressions.Experssion) error {
-	val, err := inter.evaluate(expr)
-	fmt.Println(stringify(val))
-	if err != nil {
-		reporting.ReportRuntimeError(err)
-		return err
+func (inter *Interpreter) Interpret(stmts []statements.Statement) error {
+
+	for _, stmt := range stmts {
+		err := inter.execute(stmt)
+		if err != nil {
+			reporting.ReportRuntimeError(err)
+			return err
+		}
 	}
+
 	return nil
+}
+
+func (inter *Interpreter) execute(stmt statements.Statement) error {
+	return stmt.Accept(inter)
 }
 
 // the runtime value was produced during scanning and it in the token.
@@ -211,6 +220,22 @@ func (inter *Interpreter) VisitBinary(expr expressions.Binary) (interface{}, err
 	}
 
 	return nil, &ErrorExpressionInterpretation{token: expr.Operator}
+}
+
+func (inter *Interpreter) VisitExprStmt(expr statements.ExperssionStatement) error {
+	_, err := inter.evaluate(expr.Expr)
+	return err
+
+}
+
+func (inter *Interpreter) VisitPrintStmt(expr statements.PrintStatement) error {
+	val, err := inter.evaluate(expr.Expr)
+	if err != nil {
+		return err
+	}
+	fmt.Println(stringify(val))
+	return err
+
 }
 
 // sends the expression back into the interpreter’s visitor implementation
