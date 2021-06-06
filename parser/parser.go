@@ -41,6 +41,21 @@ func (p *Parser) Parse() []statements.Statement {
 	return statements
 }
 
+func (p *Parser) block() ([]statements.Statement, error) {
+	stmts := []statements.Statement{}
+
+	for !p.check(scanner.RIGHT_BRACE) && !p.isAtEnd() {
+		stmt := p.declaration()
+		stmts = append(stmts, stmt)
+	}
+	_, err := p.consume(scanner.RIGHT_BRACE, "Expect '}' after block.")
+	if err != nil {
+		return stmts, err
+	}
+
+	return stmts, nil
+}
+
 // declaration    → varDeclaration | statement ;
 func (p *Parser) declaration() statements.Statement {
 	var err error
@@ -87,10 +102,14 @@ func (p *Parser) varDeclaration() (statements.Statement, error) {
 
 }
 
-// statement      → exprStatement | printStatement ;
+// statement      → exprStatement | printStatement | block;
 func (p *Parser) statement() (statements.Statement, error) {
 	if p.match(scanner.PRINT) {
 		return p.printStatement()
+	}
+	if p.match(scanner.LEFT_BRACE) {
+		stmts, err := p.block()
+		return statements.BlockStatement{Statements: stmts}, err
 	}
 
 	return p.experssionStatement()

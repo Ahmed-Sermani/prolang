@@ -10,6 +10,7 @@ type StatementVisitor interface {
 	VisitPrintStmt(PrintStatement) error
 	VisitExprStmt(ExperssionStatement) error
 	VisitVarDecStmt(VarDecStatement) error
+	VisitBlockStmt(BlockStatement) error
 }
 
 type PrintStatement struct {
@@ -26,8 +27,8 @@ type ExperssionStatement struct {
 	Expr expressions.Experssion
 }
 
-func (p ExperssionStatement) Accept(visitor StatementVisitor) error {
-	return visitor.VisitExprStmt(p)
+func (e ExperssionStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitExprStmt(e)
 }
 
 type VarDecStatement struct {
@@ -35,6 +36,14 @@ type VarDecStatement struct {
 	Initializer expressions.Experssion
 }
 
-func (p VarDecStatement) Accept(visitor StatementVisitor) error {
-	return visitor.VisitVarDecStmt(p)
+func (v VarDecStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitVarDecStmt(v)
+}
+
+type BlockStatement struct {
+	Statements []Statement
+}
+
+func (s BlockStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitBlockStmt(s)
 }

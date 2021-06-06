@@ -36,7 +36,9 @@ type Interpreter struct {
 }
 
 func New() *Interpreter {
-	return &Interpreter{}
+	return &Interpreter{
+		environment: environment.New(nil),
+	}
 }
 
 func (inter *Interpreter) Interpret(stmts []statements.Statement) error {
@@ -270,6 +272,30 @@ func (inter *Interpreter) VisitVarDecStmt(stmt statements.VarDecStatement) error
 	}
 	inter.environment.Define(stmt.Token.Lexeme, value)
 	return nil
+}
+
+func (inter *Interpreter) VisitBlockStmt(stmt statements.BlockStatement) error {
+	// passing the current environment into the enclosing state of sub-scope
+	return inter.executeBlock(stmt.Statements, environment.New(&inter.environment))
+}
+
+func (inter *Interpreter) executeBlock(stmts []statements.Statement, innerEnv environment.Environment) error {
+	// save the outer env
+	outerEnv := inter.environment
+	// replace the outer env with the inner one
+	inter.environment = innerEnv
+	// defer env restore That way it gets restored even if an error occurs.
+	defer func() {
+		inter.environment = outerEnv
+	}()
+	for _, stmt := range stmts {
+		err := inter.execute(stmt)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+
 }
 
 // sends the expression back into the interpreter’s visitor implementation
