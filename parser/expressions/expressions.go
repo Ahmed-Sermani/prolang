@@ -26,6 +26,7 @@ type ExpressionVisitor interface {
 	VisitGrouping(Grouping) (interface{}, error)
 	VisitLiteral(Literal) (interface{}, error)
 	VisitUnary(Unary) (interface{}, error)
+	VisitVairable(Variable) (interface{}, error)
 }
 
 type Binary struct {
@@ -50,6 +51,11 @@ type Unary struct {
 	Operator Token
 }
 
+// wrapper around the token for the variable name
+type Variable struct {
+	Token Token
+}
+
 func (g Grouping) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitGrouping(g)
 }
@@ -64,4 +70,8 @@ func (l Literal) Accept(visitor ExpressionVisitor) (interface{}, error) {
 
 func (u Unary) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitUnary(u)
+}
+
+func (u Variable) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitVairable(u)
 }

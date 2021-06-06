@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/Ahmed-Sermani/prolang/interpreter/environment"
 	"github.com/Ahmed-Sermani/prolang/parser/expressions"
 	"github.com/Ahmed-Sermani/prolang/parser/statements"
 	"github.com/Ahmed-Sermani/prolang/reporting"
@@ -30,7 +31,9 @@ type ErrorOpNumMismatch struct {
 }
 
 // implement expression visitor and statement visitor interface
-type Interpreter struct{}
+type Interpreter struct {
+	environment environment.Environment
+}
 
 func New() *Interpreter {
 	return &Interpreter{}
@@ -222,20 +225,40 @@ func (inter *Interpreter) VisitBinary(expr expressions.Binary) (interface{}, err
 	return nil, &ErrorExpressionInterpretation{token: expr.Operator}
 }
 
-func (inter *Interpreter) VisitExprStmt(expr statements.ExperssionStatement) error {
-	_, err := inter.evaluate(expr.Expr)
+func (inter *Interpreter) VisitVairable(expr expressions.Variable) (interface{}, error) {
+	return inter.environment.Get(expr.Token)
+}
+
+func (inter *Interpreter) VisitExprStmt(stmt statements.ExperssionStatement) error {
+	_, err := inter.evaluate(stmt.Expr)
 	return err
 
 }
 
-func (inter *Interpreter) VisitPrintStmt(expr statements.PrintStatement) error {
-	val, err := inter.evaluate(expr.Expr)
+func (inter *Interpreter) VisitPrintStmt(stmt statements.PrintStatement) error {
+	val, err := inter.evaluate(stmt.Expr)
 	if err != nil {
 		return err
 	}
 	fmt.Println(stringify(val))
 	return err
 
+}
+
+// evaluate the initializer of exists
+// vairable decleration without initializer is allowed
+func (inter *Interpreter) VisitVarDecStmt(stmt statements.VarDecStatement) error {
+	var value interface{}
+	if stmt.Initializer != nil {
+		// evaluate initializer expression
+		tvalue, err := inter.evaluate(stmt.Initializer)
+		if err != nil {
+			return err
+		}
+		value = tvalue
+	}
+	inter.environment.Define(stmt.Token.Lexeme, value)
+	return nil
 }
 
 // sends the expression back into the interpreter’s visitor implementation

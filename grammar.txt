@@ -1,4 +1,6 @@
-prog           → statement* EOF ;
+prog           → declaration* EOF ;
+declaration    → varDeclaration | statement ;
+varDeclaration → "let" IDENTIFIER ( "=" expression )? ";" ;
 statement      → exprStatement | printStatement ;
 exprStatement  → expression ";" ;
 printStmt      → "print" expression ";" ;
@@ -8,4 +10,4 @@ comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | primary ;
-primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER ;

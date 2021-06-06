@@ -9,6 +9,7 @@ type Statement interface {
 type StatementVisitor interface {
 	VisitPrintStmt(PrintStatement) error
 	VisitExprStmt(ExperssionStatement) error
+	VisitVarDecStmt(VarDecStatement) error
 }
 
 type PrintStatement struct {
@@ -27,4 +28,13 @@ type ExperssionStatement struct {
 
 func (p ExperssionStatement) Accept(visitor StatementVisitor) error {
 	return visitor.VisitExprStmt(p)
+}
+
+type VarDecStatement struct {
+	Token       expressions.Token
+	Initializer expressions.Experssion
+}
+
+func (p VarDecStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitVarDecStmt(p)
 }

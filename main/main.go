@@ -58,11 +58,7 @@ func run(source string) {
 	scanner := scanner.New(source)
 	tokens := scanner.ScanTokens()
 	p := parser.New(tokens)
-	stmts, err := p.Parse()
-	if err != nil || reporting.HadError() {
-		return
-	}
-
+	stmts := p.Parse()
 	// stop if there is a syntax error
 	if reporting.HadError() {
 		return

@@ -30,16 +30,60 @@ func New(tokens []expressions.Token) *Parser {
 
 // start parsing
 // prog           → statement* EOF ;
-func (p *Parser) Parse() ([]statements.Statement, error) {
+func (p *Parser) Parse() []statements.Statement {
 	statements := []statements.Statement{}
 	for !p.isAtEnd() {
-		statement, err := p.statement()
-		if err != nil {
-			return statements, err
-		}
-		statements = append(statements, statement)
+		dec := p.declaration()
+
+		statements = append(statements, dec)
 	}
-	return statements, nil
+	return statements
+}
+
+// declaration    → varDeclaration | statement ;
+func (p *Parser) declaration() statements.Statement {
+	var err error
+	if p.match(scanner.LET) {
+		stmt, err := p.varDeclaration()
+		// recovery
+		if err != nil {
+			p.synchronize()
+			return nil
+		}
+		return stmt
+	}
+	stmt, err := p.statement()
+
+	// recovery
+	if err != nil {
+		p.synchronize()
+		return nil
+	}
+	return stmt
+
+}
+
+func (p *Parser) varDeclaration() (statements.Statement, error) {
+	name, err := p.consume(scanner.IDENTIFIER, "Expect variable name.")
+	if err != nil {
+		return nil, err
+	}
+	var initializer expressions.Experssion
+	if p.match(scanner.EQUAL) {
+		initializer, err = p.experssion()
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err1 := p.consume(scanner.SEMICOLON, "Expect ';' after variable declaration.")
+	if err1 != nil {
+		return nil, err1
+	}
+	return statements.VarDecStatement{
+		Token:       name,
+		Initializer: initializer,
+	}, nil
+
 }
 
 // statement      → exprStatement | printStatement ;
@@ -57,7 +101,10 @@ func (p *Parser) printStatement() (statements.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.consume(scanner.SEMICOLON, "Expected ';' after expression.")
+	_, err1 := p.consume(scanner.SEMICOLON, "Expected ';' after expression.")
+	if err1 != nil {
+		return nil, err
+	}
 	return statements.PrintStatement{Expr: val}, nil
 }
 
@@ -67,7 +114,10 @@ func (p *Parser) experssionStatement() (statements.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.consume(scanner.SEMICOLON, "Expected ';' after value.")
+	_, err1 := p.consume(scanner.SEMICOLON, "Expected ';' after value.")
+	if err1 != nil {
+		return nil, err
+	}
 	return statements.ExperssionStatement{Expr: val}, nil
 }
 
@@ -205,6 +255,8 @@ func (p *Parser) primary() (expressions.Experssion, error) {
 			}
 			return expressions.Grouping{Expr: expr}, nil
 		}
+	case p.match(scanner.IDENTIFIER):
+		return expressions.Variable{Token: p.previous()}, nil
 	}
 	return expressions.Grouping{}, ErrorParsing
 }
@@ -227,7 +279,7 @@ func (p *Parser) consume(tokenType expressions.TokenType, msg string) (expressio
 }
 
 // discard tokens until the beginning of the next statement
-func (p *Parser) Synchronize() {
+func (p *Parser) synchronize() {
 	p.advance()
 
 	for !p.isAtEnd() {
@@ -340,6 +392,11 @@ func (pv PrintVisitor) VisitLiteral(expr expressions.Literal) (interface{}, erro
 // visit unary expression
 func (pv PrintVisitor) VisitUnary(expr expressions.Unary) (interface{}, error) {
 	return pv.parenthesize(expr.Operator.Lexeme, expr.Right)
+}
+
+// not implemented
+func (pv PrintVisitor) VisitVairable(expr expressions.Variable) (interface{}, error) {
+	return nil, nil
 }
 
 // stringify the expressions into single string builder and return its accumulated string.
