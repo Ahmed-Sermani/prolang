@@ -40,3 +40,16 @@ func (env *Environment) Get(t expressions.Token) (interface{}, error) {
 	}
 	return v, nil
 }
+
+func (env *Environment) Assgin(t expressions.Token, value interface{}) error {
+	if env.values == nil {
+		env.values = map[string]interface{}{}
+	}
+	if _, ok := env.values[t.Lexeme]; ok {
+		env.values[t.Lexeme] = value
+		return nil
+	}
+	err := ErrorUndefinedVairable{msg: fmt.Sprintf("Undefined Variable '%s'.", t.Lexeme)}
+	reporting.ReportRuntimeError(err)
+	return err
+}

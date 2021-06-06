@@ -27,6 +27,7 @@ type ExpressionVisitor interface {
 	VisitLiteral(Literal) (interface{}, error)
 	VisitUnary(Unary) (interface{}, error)
 	VisitVairable(Variable) (interface{}, error)
+	VisitAssgin(Assgin) (interface{}, error)
 }
 
 type Binary struct {
@@ -56,6 +57,12 @@ type Variable struct {
 	Token Token
 }
 
+// has variable being assigned to, and an expression for the new value
+type Assgin struct {
+	Token Token
+	Value Experssion
+}
+
 func (g Grouping) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitGrouping(g)
 }
@@ -72,6 +79,10 @@ func (u Unary) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitUnary(u)
 }
 
-func (u Variable) Accept(visitor ExpressionVisitor) (interface{}, error) {
-	return visitor.VisitVairable(u)
+func (v Variable) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitVairable(v)
+}
+
+func (a Assgin) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitAssgin(a)
 }

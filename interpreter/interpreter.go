@@ -229,6 +229,17 @@ func (inter *Interpreter) VisitVairable(expr expressions.Variable) (interface{},
 	return inter.environment.Get(expr.Token)
 }
 
+// evaluates the r-value.
+// then stores it in the named variable
+func (inter *Interpreter) VisitAssgin(expr expressions.Assgin) (interface{}, error) {
+	value, err := inter.evaluate(expr.Value)
+	if err != nil {
+		return nil, err
+	}
+	inter.environment.Assgin(expr.Token, value)
+	return value, nil
+}
+
 func (inter *Interpreter) VisitExprStmt(stmt statements.ExperssionStatement) error {
 	_, err := inter.evaluate(stmt.Expr)
 	return err

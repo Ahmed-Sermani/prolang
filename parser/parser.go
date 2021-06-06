@@ -14,6 +14,7 @@ import (
 
 var ErrorParsing = errors.New("error while parsing expressions")
 var ErrorPrinterVisitor = errors.New("error in printer visitor")
+var ErrorInvalidAssginTarget = errors.New("invalid assignment target")
 
 type Parser struct {
 	tokens  []expressions.Token
@@ -121,9 +122,38 @@ func (p *Parser) experssionStatement() (statements.Statement, error) {
 	return statements.ExperssionStatement{Expr: val}, nil
 }
 
-// expression     → equality ;
+// expression     → assignment ;
 func (p *Parser) experssion() (expressions.Experssion, error) {
-	return p.equality()
+	return p.assignment()
+}
+
+// assignment     → IDENTIFIER "=" assignment | equality ;
+func (p *Parser) assignment() (expressions.Experssion, error) {
+	expr, err := p.equality()
+	if err != nil {
+		return nil, err
+	}
+	if p.match(scanner.EQUAL) {
+		equals := p.previous()
+
+		// since assignment is right associative, then recursively call assignment() to parse the r-value.
+		val, err := p.assignment()
+		if err != nil {
+			return nil, err
+		}
+
+		// look at the left-hand side expression and figure out what kind of assignment target it is
+		// convert the r-value expression node into an l-value representation
+		if varExpr, ok := expr.(expressions.Variable); ok {
+			return expressions.Assgin{Token: varExpr.Token, Value: val}, nil
+		}
+
+		reporting.ReportError(equals.Line, ErrorInvalidAssginTarget.Error())
+		return nil, ErrorInvalidAssginTarget
+	}
+
+	return expr, nil
+
 }
 
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -396,6 +426,11 @@ func (pv PrintVisitor) VisitUnary(expr expressions.Unary) (interface{}, error) {
 
 // not implemented
 func (pv PrintVisitor) VisitVairable(expr expressions.Variable) (interface{}, error) {
+	return nil, nil
+}
+
+// not implemented
+func (pv PrintVisitor) VisitAssgin(expr expressions.Assgin) (interface{}, error) {
 	return nil, nil
 }
 
