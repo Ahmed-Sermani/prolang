@@ -32,7 +32,7 @@ type ErrorOpNumMismatch struct {
 
 // implement expression visitor and statement visitor interface
 type Interpreter struct {
-	environment environment.Environment
+	environment *environment.Environment
 }
 
 func New() *Interpreter {
@@ -276,10 +276,10 @@ func (inter *Interpreter) VisitVarDecStmt(stmt statements.VarDecStatement) error
 
 func (inter *Interpreter) VisitBlockStmt(stmt statements.BlockStatement) error {
 	// passing the current environment into the enclosing state of sub-scope
-	return inter.executeBlock(stmt.Statements, environment.New(&inter.environment))
+	return inter.executeBlock(stmt.Statements, environment.New(inter.environment))
 }
 
-func (inter *Interpreter) executeBlock(stmts []statements.Statement, innerEnv environment.Environment) error {
+func (inter *Interpreter) executeBlock(stmts []statements.Statement, innerEnv *environment.Environment) error {
 	// save the outer env
 	outerEnv := inter.environment
 	// replace the outer env with the inner one

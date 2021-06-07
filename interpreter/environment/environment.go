@@ -27,8 +27,8 @@ type Environment struct {
 	enclosing *Environment
 }
 
-func New(enclosing *Environment) Environment {
-	return Environment{
+func New(enclosing *Environment) *Environment {
+	return &Environment{
 		values:    map[string]interface{}{},
 		enclosing: enclosing,
 	}
