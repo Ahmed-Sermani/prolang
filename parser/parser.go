@@ -35,7 +35,6 @@ func (p *Parser) Parse() []statements.Statement {
 	statements := []statements.Statement{}
 	for !p.isAtEnd() {
 		dec := p.declaration()
-
 		statements = append(statements, dec)
 	}
 	return statements
@@ -102,8 +101,11 @@ func (p *Parser) varDeclaration() (statements.Statement, error) {
 
 }
 
-// statement      → exprStatement | printStatement | block;
+// statement      → exprStatement | printStatement | block | ifStatement;
 func (p *Parser) statement() (statements.Statement, error) {
+	if p.match(scanner.IF) {
+		return p.ifStatement()
+	}
 	if p.match(scanner.PRINT) {
 		return p.printStatement()
 	}
@@ -113,6 +115,43 @@ func (p *Parser) statement() (statements.Statement, error) {
 	}
 
 	return p.experssionStatement()
+}
+
+// ifStatement    → "if" "(" expression ")" statement ( "else" statement )? ;
+func (p *Parser) ifStatement() (statements.Statement, error) {
+	_, err := p.consume(scanner.LEFT_PAREN, "Expected '(' after 'if'")
+	if err != nil {
+		return nil, err
+	}
+	condition, err := p.experssion()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err1 := p.consume(scanner.RIGHT_PAREN, "Expected ')' after condition")
+	if err1 != nil {
+		return nil, err
+	}
+	thenBranch, err1 := p.statement()
+
+	if err1 != nil {
+		return nil, err
+	}
+
+	var elseBranch statements.Statement
+	if p.match(scanner.ELSE) {
+		elseBranch, err = p.statement()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return statements.IfStatement{
+		Condition:  condition,
+		ThenBranch: thenBranch,
+		ElseBranch: elseBranch,
+	}, nil
+
 }
 
 // exprStatement  → expression ";" ;

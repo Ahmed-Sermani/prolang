@@ -1,7 +1,8 @@
 prog           → declaration* EOF ;
 declaration    → varDeclaration | statement ;
 varDeclaration → "let" IDENTIFIER ( "=" expression )? ";" ;
-statement      → exprStatement | printStatement | block;
+statement      → exprStatement | printStatement | block | ifStatement;
+ifStatement         → "if" "(" expression ")" statement ( "else" statement )? ;
 block          → "{" declaration* "}" ;
 exprStatement  → expression ";" ;
 printStmt      → "print" expression ";" ;

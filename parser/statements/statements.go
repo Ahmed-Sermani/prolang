@@ -11,6 +11,7 @@ type StatementVisitor interface {
 	VisitExprStmt(ExperssionStatement) error
 	VisitVarDecStmt(VarDecStatement) error
 	VisitBlockStmt(BlockStatement) error
+	VisitIfStmt(IfStatement) error
 }
 
 type PrintStatement struct {
@@ -46,4 +47,14 @@ type BlockStatement struct {
 
 func (s BlockStatement) Accept(visitor StatementVisitor) error {
 	return visitor.VisitBlockStmt(s)
+}
+
+type IfStatement struct {
+	Condition  expressions.Experssion
+	ThenBranch Statement
+	ElseBranch Statement
+}
+
+func (i IfStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitIfStmt(i)
 }

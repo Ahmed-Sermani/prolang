@@ -279,6 +279,21 @@ func (inter *Interpreter) VisitBlockStmt(stmt statements.BlockStatement) error {
 	return inter.executeBlock(stmt.Statements, environment.New(inter.environment))
 }
 
+// evaluates the condition. If truthy, executes the then branch.
+// Otherwise, if there is an else branch, executes that.
+func (inter *Interpreter) VisitIfStmt(stmt statements.IfStatement) error {
+	conditionValue, err := inter.evaluate(stmt.Condition)
+	if err != nil {
+		return err
+	}
+	if isTruthy(reflect.ValueOf(conditionValue)) {
+		inter.execute(stmt.ThenBranch)
+	} else if stmt.ElseBranch != nil {
+		inter.execute(stmt.ElseBranch)
+	}
+	return nil
+}
+
 func (inter *Interpreter) executeBlock(stmts []statements.Statement, innerEnv *environment.Environment) error {
 	// save the outer env
 	outerEnv := inter.environment
