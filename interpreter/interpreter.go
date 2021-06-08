@@ -309,6 +309,24 @@ func (inter *Interpreter) VisitIfStmt(stmt statements.IfStatement) error {
 	return nil
 }
 
+// evaluated the condition . while it's truthy execute the body
+func (inter *Interpreter) VisitWhileStmt(stmt statements.WhileStatement) error {
+	for {
+		condiction, err := inter.evaluate(stmt.Condition)
+		if err != nil {
+			return err
+		}
+		if !isTruthy(reflect.ValueOf(condiction)) {
+			break
+		}
+		err1 := inter.execute(stmt.Body)
+		if err1 != nil {
+			return nil
+		}
+	}
+	return nil
+}
+
 func (inter *Interpreter) executeBlock(stmts []statements.Statement, innerEnv *environment.Environment) error {
 	// save the outer env
 	outerEnv := inter.environment

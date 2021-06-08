@@ -12,6 +12,7 @@ type StatementVisitor interface {
 	VisitVarDecStmt(VarDecStatement) error
 	VisitBlockStmt(BlockStatement) error
 	VisitIfStmt(IfStatement) error
+	VisitWhileStmt(WhileStatement) error
 }
 
 type PrintStatement struct {
@@ -57,4 +58,13 @@ type IfStatement struct {
 
 func (i IfStatement) Accept(visitor StatementVisitor) error {
 	return visitor.VisitIfStmt(i)
+}
+
+type WhileStatement struct {
+	Condition expressions.Experssion
+	Body      Statement
+}
+
+func (w WhileStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitWhileStmt(w)
 }

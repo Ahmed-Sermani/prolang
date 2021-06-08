@@ -101,7 +101,7 @@ func (p *Parser) varDeclaration() (statements.Statement, error) {
 
 }
 
-// statement      → exprStatement | printStatement | block | ifStatement;
+// statement      → exprStatement | printStatement | block | ifStatement | whileStatement;
 func (p *Parser) statement() (statements.Statement, error) {
 	if p.match(scanner.IF) {
 		return p.ifStatement()
@@ -109,12 +109,40 @@ func (p *Parser) statement() (statements.Statement, error) {
 	if p.match(scanner.PRINT) {
 		return p.printStatement()
 	}
+	if p.match(scanner.WHILE) {
+		return p.whileStatement()
+	}
 	if p.match(scanner.LEFT_BRACE) {
 		stmts, err := p.block()
 		return statements.BlockStatement{Statements: stmts}, err
 	}
 
 	return p.experssionStatement()
+}
+
+// whileStmt      → "while" "(" expression ")" statement ;
+func (p *Parser) whileStatement() (statements.Statement, error) {
+	_, err := p.consume(scanner.LEFT_PAREN, "Expect '(' after 'while'")
+	if err != nil {
+		return nil, err
+	}
+	condition, err := p.experssion()
+	if err != nil {
+		return nil, err
+	}
+	_, err1 := p.consume(scanner.RIGHT_PAREN, "Expect ')' after condition")
+	if err1 != nil {
+		return nil, err1
+	}
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	return statements.WhileStatement{
+		Condition: condition,
+		Body:      body,
+	}, nil
 }
 
 // ifStatement    → "if" "(" expression ")" statement ( "else" statement )? ;
