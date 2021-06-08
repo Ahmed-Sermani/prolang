@@ -28,6 +28,7 @@ type ExpressionVisitor interface {
 	VisitUnary(Unary) (interface{}, error)
 	VisitVairable(Variable) (interface{}, error)
 	VisitAssgin(Assgin) (interface{}, error)
+	VisitLogical(Logical) (interface{}, error)
 }
 
 type Binary struct {
@@ -63,6 +64,13 @@ type Assgin struct {
 	Value Experssion
 }
 
+// represent 'and', 'or' operators
+type Logical struct {
+	Left     Experssion
+	Right    Experssion
+	Operator Token
+}
+
 func (g Grouping) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitGrouping(g)
 }
@@ -85,4 +93,8 @@ func (v Variable) Accept(visitor ExpressionVisitor) (interface{}, error) {
 
 func (a Assgin) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitAssgin(a)
+}
+
+func (l Logical) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitLogical(l)
 }

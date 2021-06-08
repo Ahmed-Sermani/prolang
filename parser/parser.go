@@ -185,9 +185,9 @@ func (p *Parser) experssion() (expressions.Experssion, error) {
 	return p.assignment()
 }
 
-// assignment     → IDENTIFIER "=" assignment | equality ;
+// assignment     → IDENTIFIER "=" assignment | logicalOr ;
 func (p *Parser) assignment() (expressions.Experssion, error) {
-	expr, err := p.equality()
+	expr, err := p.logicalOr()
 	if err != nil {
 		return nil, err
 	}
@@ -212,6 +212,49 @@ func (p *Parser) assignment() (expressions.Experssion, error) {
 
 	return expr, nil
 
+}
+
+// logicalOr      → logicalAnd ( "or" logicalAnd )* ;
+func (p *Parser) logicalOr() (expressions.Experssion, error) {
+	expr, err := p.logicalAnd()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(scanner.OR) {
+		op := p.previous()
+		right, err := p.logicalAnd()
+		if err != nil {
+			return nil, nil
+		}
+		expr = expressions.Logical{
+			Right:    right,
+			Left:     expr,
+			Operator: op,
+		}
+	}
+	return expr, nil
+}
+
+// logicalAnd     → equality ( "and" equality )* ;
+func (p *Parser) logicalAnd() (expressions.Experssion, error) {
+	expr, err := p.equality()
+	if err != nil {
+		return nil, err
+	}
+	for p.match(scanner.AND) {
+		op := p.previous()
+		right, err := p.equality()
+		if err != nil {
+			return nil, err
+		}
+		expr = expressions.Logical{
+			Right:    right,
+			Left:     expr,
+			Operator: op,
+		}
+	}
+	return expr, nil
 }
 
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -489,6 +532,11 @@ func (pv PrintVisitor) VisitVairable(expr expressions.Variable) (interface{}, er
 
 // not implemented
 func (pv PrintVisitor) VisitAssgin(expr expressions.Assgin) (interface{}, error) {
+	return nil, nil
+}
+
+// not implemented
+func (pv PrintVisitor) VisitLogical(expr expressions.Logical) (interface{}, error) {
 	return nil, nil
 }
 

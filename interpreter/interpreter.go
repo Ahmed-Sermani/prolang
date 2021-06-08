@@ -242,6 +242,21 @@ func (inter *Interpreter) VisitAssgin(expr expressions.Assgin) (interface{}, err
 	return value, nil
 }
 
+func (inter *Interpreter) VisitLogical(expr expressions.Logical) (interface{}, error) {
+	left, err := inter.evaluate(expr.Left)
+	if err != nil {
+		return nil, err
+	}
+	refVal := reflect.ValueOf(left)
+	if expr.Operator.Kind == scanner.OR && isTruthy(refVal) {
+		return left, nil
+	} else if !isTruthy(refVal) {
+		return left, nil
+	}
+
+	return inter.evaluate(expr.Right)
+}
+
 func (inter *Interpreter) VisitExprStmt(stmt statements.ExperssionStatement) error {
 	_, err := inter.evaluate(stmt.Expr)
 	return err
