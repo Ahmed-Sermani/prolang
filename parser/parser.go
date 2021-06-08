@@ -101,8 +101,11 @@ func (p *Parser) varDeclaration() (statements.Statement, error) {
 
 }
 
-// statement      → exprStatement | printStatement | block | ifStatement | whileStatement;
+// statement      → exprStatement | printStatement | block | ifStatement | whileStatement | forStatement;
 func (p *Parser) statement() (statements.Statement, error) {
+	if p.match(scanner.FOR) {
+		return p.forStatement()
+	}
 	if p.match(scanner.IF) {
 		return p.ifStatement()
 	}
@@ -118,6 +121,94 @@ func (p *Parser) statement() (statements.Statement, error) {
 	}
 
 	return p.experssionStatement()
+}
+
+// forStatement   → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
+func (p *Parser) forStatement() (statements.Statement, error) {
+	_, err := p.consume(scanner.LEFT_PAREN, "Expect '(' after 'for'")
+	if err != nil {
+		return nil, err
+	}
+	var initializer statements.Statement
+
+	// variable declaration
+	if p.match(scanner.LET) {
+		dec, err := p.varDeclaration()
+		initializer = dec
+		if err != nil {
+			return nil, err
+		}
+		// the initializer is an expression
+	} else {
+		expr, err := p.experssionStatement()
+		initializer = expr
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	var condition expressions.Experssion
+	// if the condition omitted
+	if !p.check(scanner.SEMICOLON) {
+		condition, err = p.experssion()
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err1 := p.consume(scanner.SEMICOLON, "Expect ';' after loop condition")
+	if err1 != nil {
+		return nil, err1
+	}
+
+	var increment expressions.Experssion
+	// check if the increment part is omitted
+	if !p.check(scanner.RIGHT_PAREN) {
+		increment, err = p.experssion()
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err2 := p.consume(scanner.RIGHT_PAREN, "Expect ')' after for clauses.")
+	if err2 != nil {
+		return nil, err2
+	}
+
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	if increment != nil {
+		// replacing the body with Block statement that has the increment appended at the end
+		body = statements.BlockStatement{
+			Statements: []statements.Statement{
+				body,
+				statements.ExperssionStatement{Expr: increment},
+			},
+		}
+
+	}
+
+	if condition == nil {
+		// if the condition is not set. set it as true literal
+		condition = expressions.Literal{Value: true}
+	}
+
+	// implement for loop as syntactic sugar of while loop
+	body = statements.WhileStatement{
+		Condition: condition,
+		Body:      body,
+	}
+
+	// if the initializer is set. using Block statement. set the initializer as the first statement
+	if initializer != nil {
+		body = statements.BlockStatement{
+			Statements: []statements.Statement{initializer, body},
+		}
+	}
+
+	return body, nil
 }
 
 // whileStmt      → "while" "(" expression ")" statement ;
