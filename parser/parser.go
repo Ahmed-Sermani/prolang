@@ -14,7 +14,7 @@ import (
 
 var ErrorParsing = errors.New("error while parsing expressions")
 var ErrorPrinterVisitor = errors.New("error in printer visitor")
-var ErrorInvalidAssginTarget = errors.New("invalid assignment target")
+var ErrorInvalidAssginTarget = errors.New("error invalid assgin target")
 
 type Parser struct {
 	tokens  []expressions.Token
@@ -55,9 +55,17 @@ func (p *Parser) block() ([]statements.Statement, error) {
 	return stmts, nil
 }
 
-// declaration    → varDeclaration | statement ;
+// declaration     → varDeclaration | statement | funcDeclaration ;
 func (p *Parser) declaration() statements.Statement {
 	var err error
+	if p.match(scanner.FUNC) {
+		stmt, err := p.function("function")
+		if err != nil {
+			p.synchronize()
+			return nil
+		}
+		return stmt
+	}
 	if p.match(scanner.LET) {
 		stmt, err := p.varDeclaration()
 		// recovery
@@ -76,6 +84,45 @@ func (p *Parser) declaration() statements.Statement {
 	}
 	return stmt
 
+}
+
+func (p *Parser) function(kind string) (statements.Statement, error) {
+	name, err := p.consume(scanner.IDENTIFIER, "Expect "+kind+" name.")
+	if err != nil {
+		return nil, err
+	}
+	_, err2 := p.consume(scanner.LEFT_PAREN, "Expect '(' after "+kind+" name.")
+	if err2 != nil {
+		return nil, err2
+	}
+	paramenters := []expressions.Token{}
+
+	if !p.check(scanner.RIGHT_PAREN) {
+		for {
+			param, err := p.consume(scanner.IDENTIFIER, "Expect parameter name.")
+			if err != nil {
+				return nil, err
+			}
+			paramenters = append(paramenters, param)
+			if !p.match(scanner.COMMA) {
+				break
+			}
+		}
+	}
+	_, err1 := p.consume(scanner.RIGHT_PAREN, "Expect ')' after parameters")
+	if err1 != nil {
+		return nil, err1
+	}
+	body, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+
+	return statements.FunctionStatement{
+		Name: name,
+		Args: paramenters,
+		Body: body,
+	}, nil
 }
 
 func (p *Parser) varDeclaration() (statements.Statement, error) {
@@ -466,7 +513,7 @@ func (p *Parser) factor() (expressions.Experssion, error) {
 	return expr, err
 }
 
-// unary          → ( "!" | "-" ) unary | primary
+// unary          → ( "!" | "-" ) unary | call ;
 func (p *Parser) unary() (expressions.Experssion, error) {
 	if p.match(scanner.BANG, scanner.MINUS) {
 		operator := p.previous()
@@ -479,7 +526,56 @@ func (p *Parser) unary() (expressions.Experssion, error) {
 			Right:    right,
 		}, nil
 	}
-	return p.primary()
+	return p.call()
+}
+
+// call           → primary ( "(" arguments? ")" )* ;
+func (p *Parser) call() (expressions.Experssion, error) {
+	expr, err := p.primary()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		if p.match(scanner.LEFT_PAREN) {
+			expr1, err := p.followCall(expr)
+			expr = expr1
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			break
+		}
+	}
+
+	return expr, nil
+}
+
+func (p *Parser) followCall(callee expressions.Experssion) (expressions.Experssion, error) {
+	args := []expressions.Experssion{}
+	// handle zero args case
+	if !p.check(scanner.RIGHT_PAREN) {
+		for {
+			expr, err := p.experssion()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, expr)
+			if !p.match(scanner.COMMA) {
+				break
+			}
+		}
+	}
+
+	parenth, err := p.consume(scanner.RIGHT_PAREN, "Expect ')' after argument")
+	if err != nil {
+		return nil, err
+	}
+	return expressions.Call{
+		Callee:  callee,
+		Args:    args,
+		Parenth: parenth,
+	}, nil
 }
 
 // primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
@@ -656,6 +752,11 @@ func (pv PrintVisitor) VisitAssgin(expr expressions.Assgin) (interface{}, error)
 
 // not implemented
 func (pv PrintVisitor) VisitLogical(expr expressions.Logical) (interface{}, error) {
+	return nil, nil
+}
+
+// not implemented
+func (pv PrintVisitor) VisitCall(expr expressions.Call) (interface{}, error) {
 	return nil, nil
 }
 

@@ -29,6 +29,7 @@ type ExpressionVisitor interface {
 	VisitVairable(Variable) (interface{}, error)
 	VisitAssgin(Assgin) (interface{}, error)
 	VisitLogical(Logical) (interface{}, error)
+	VisitCall(Call) (interface{}, error)
 }
 
 type Binary struct {
@@ -71,6 +72,15 @@ type Logical struct {
 	Operator Token
 }
 
+// stores the callee expression and a list of expressions for the arguments.
+// It also stores the token for the closing parenthesis. it use that token’s location when
+// it report a runtime error caused by a function call.
+type Call struct {
+	Callee  Experssion
+	Parenth Token
+	Args    []Experssion
+}
+
 func (g Grouping) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitGrouping(g)
 }
@@ -97,4 +107,8 @@ func (a Assgin) Accept(visitor ExpressionVisitor) (interface{}, error) {
 
 func (l Logical) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitLogical(l)
+}
+
+func (c Call) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitCall(c)
 }

@@ -13,6 +13,7 @@ type StatementVisitor interface {
 	VisitBlockStmt(BlockStatement) error
 	VisitIfStmt(IfStatement) error
 	VisitWhileStmt(WhileStatement) error
+	VisitFunctionStmt(FunctionStatement) error
 }
 
 type PrintStatement struct {
@@ -67,4 +68,14 @@ type WhileStatement struct {
 
 func (w WhileStatement) Accept(visitor StatementVisitor) error {
 	return visitor.VisitWhileStmt(w)
+}
+
+type FunctionStatement struct {
+	Name expressions.Token
+	Args []expressions.Token
+	Body []Statement
+}
+
+func (f FunctionStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitFunctionStmt(f)
 }

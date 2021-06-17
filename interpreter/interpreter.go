@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/Ahmed-Sermani/prolang/interpreter/environment"
 	"github.com/Ahmed-Sermani/prolang/parser/expressions"
@@ -30,19 +31,41 @@ type ErrorOpNumMismatch struct {
 	ErrorExpressionInterpretation
 }
 
+type ObjNotCallable struct {
+	ErrorExpressionInterpretation
+}
+
+type ArgsNumMismatch struct {
+	ErrorExpressionInterpretation
+}
+
 // implement expression visitor and statement visitor interface
+// global refer to the outer most global environment
 type Interpreter struct {
 	environment *environment.Environment
+	global      *environment.Environment
 }
 
 func New() *Interpreter {
+	envPtr := environment.New(nil)
 	return &Interpreter{
-		environment: environment.New(nil),
+		environment: envPtr,
+		global:      envPtr,
 	}
 }
 
-func (inter *Interpreter) Interpret(stmts []statements.Statement) error {
+type clock struct{}
 
+func (c *clock) ArgsNum() int {
+	return 0
+}
+
+func (c *clock) Call(inter Interpreter, args []interface{}) (interface{}, error) {
+	return float64(time.Now().UnixNano() / int64(time.Second)), nil
+}
+
+func (inter *Interpreter) Interpret(stmts []statements.Statement) error {
+	inter.environment.Define("clock", clock{})
 	for _, stmt := range stmts {
 		err := inter.execute(stmt)
 		if err != nil {
@@ -257,6 +280,40 @@ func (inter *Interpreter) VisitLogical(expr expressions.Logical) (interface{}, e
 	return inter.evaluate(expr.Right)
 }
 
+func (inter *Interpreter) VisitCall(expr expressions.Call) (interface{}, error) {
+	callee, err := inter.evaluate(expr.Callee)
+	if err != nil {
+		return nil, err
+	}
+	args := []interface{}{}
+	for _, arg := range expr.Args {
+		evaluatedArg, err := inter.evaluate(arg)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, evaluatedArg)
+
+	}
+	function, ok := callee.(Callable)
+	if !ok {
+		return nil, &ObjNotCallable{
+			ErrorExpressionInterpretation: ErrorExpressionInterpretation{
+				msg: fmt.Sprintf("Object %s is not callable", callee),
+			},
+		}
+	}
+
+	if len(args) != function.ArgsNum() {
+		return nil, &ObjNotCallable{
+			ErrorExpressionInterpretation: ErrorExpressionInterpretation{
+				msg: fmt.Sprintf("Function %s does not have the correct number of arguments", callee),
+			},
+		}
+	}
+	return function.Call(inter, args)
+
+}
+
 func (inter *Interpreter) VisitExprStmt(stmt statements.ExperssionStatement) error {
 	_, err := inter.evaluate(stmt.Expr)
 	return err
@@ -324,6 +381,15 @@ func (inter *Interpreter) VisitWhileStmt(stmt statements.WhileStatement) error {
 			return nil
 		}
 	}
+	return nil
+}
+
+// convert function complie time representation to its runtime representation
+func (inter *Interpreter) VisitFunctionStmt(stmt statements.FunctionStatement) error {
+	// after creating the FunctionCallable,
+	// it create a new binding in the current environment and store a reference to it there.
+	function := FunctionCallable{Declaration: stmt}
+	inter.environment.Define(stmt.Name.Lexeme, function)
 	return nil
 }
 
