@@ -404,7 +404,7 @@ func (inter *Interpreter) VisitFunctionStmt(stmt statements.FunctionStatement) e
 	// after creating the FunctionCallable,
 	// it create a new binding in the current environment and store a reference to it there.
 	// binding as *FunctionCallable because FunctionCallable implements Callable interface as pointer receiver
-	function := &FunctionCallable{Declaration: stmt}
+	function := &FunctionCallable{Declaration: stmt, Closure: inter.environment}
 	inter.environment.Define(stmt.Name.Lexeme, function)
 	return nil
 }
