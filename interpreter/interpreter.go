@@ -65,7 +65,7 @@ func (c *clock) Call(inter Interpreter, args []interface{}) (interface{}, error)
 }
 
 func (inter *Interpreter) Interpret(stmts []statements.Statement) error {
-	inter.environment.Define("clock", clock{})
+	inter.environment.Define("clock", &clock{})
 	for _, stmt := range stmts {
 		err := inter.execute(stmt)
 		if err != nil {
@@ -415,6 +415,10 @@ func (inter *Interpreter) executeBlock(stmts []statements.Statement, innerEnv *e
 
 // sends the expression back into the interpreter’s visitor implementation
 func (inter *Interpreter) evaluate(expr expressions.Experssion) (interface{}, error) {
+	return expr.Accept(inter)
+}
+
+func (inter *Interpreter) Resolve(expr expressions.Experssion) (interface{}, error) {
 	return expr.Accept(inter)
 }
 
