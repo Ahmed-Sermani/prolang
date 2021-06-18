@@ -28,6 +28,13 @@ func (f *FunctionCallable) Call(inter *Interpreter, args []interface{}) (interfa
 	}
 	// execute function body
 	err := inter.executeBlock(f.Declaration.Body, environment)
+
+	// handling the unwind of return statement
+	returnValue, isReturn := err.(ErrorHandleReturn)
+	if isReturn {
+		return returnValue.value, nil
+	}
+	// default return value is nil
 	return nil, err
 }
 

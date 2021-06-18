@@ -39,6 +39,15 @@ type ArgsNumMismatch struct {
 	ErrorExpressionInterpretation
 }
 
+// error to handle unwind for return statement
+type ErrorHandleReturn struct {
+	value interface{}
+}
+
+func (e ErrorHandleReturn) Error() string {
+	return ""
+}
+
 // implement expression visitor and statement visitor interface
 // global refer to the outer most global environment
 type Interpreter struct {
@@ -359,9 +368,15 @@ func (inter *Interpreter) VisitIfStmt(stmt statements.IfStatement) error {
 		return err
 	}
 	if isTruthy(reflect.ValueOf(conditionValue)) {
-		inter.execute(stmt.ThenBranch)
+		err := inter.execute(stmt.ThenBranch)
+		if err != nil {
+			return err
+		}
 	} else if stmt.ElseBranch != nil {
-		inter.execute(stmt.ElseBranch)
+		err := inter.execute(stmt.ElseBranch)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -392,6 +407,18 @@ func (inter *Interpreter) VisitFunctionStmt(stmt statements.FunctionStatement) e
 	function := &FunctionCallable{Declaration: stmt}
 	inter.environment.Define(stmt.Name.Lexeme, function)
 	return nil
+}
+
+func (inter *Interpreter) VisitReturnStmt(stmt statements.ReturnStatement) error {
+	var value interface{}
+	if stmt.Value != nil {
+		value1, err := inter.evaluate(stmt.Value)
+		if err != nil {
+			return err
+		}
+		value = value1
+	}
+	return ErrorHandleReturn{value: value}
 }
 
 func (inter *Interpreter) executeBlock(stmts []statements.Statement, innerEnv *environment.Environment) error {
