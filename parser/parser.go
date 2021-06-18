@@ -113,6 +113,10 @@ func (p *Parser) function(kind string) (statements.Statement, error) {
 	if err1 != nil {
 		return nil, err1
 	}
+	_, err3 := p.consume(scanner.LEFT_BRACE, "Expect '{' before "+kind+" body.")
+	if err3 != nil {
+		return nil, err3
+	}
 	body, err := p.block()
 	if err != nil {
 		return nil, err

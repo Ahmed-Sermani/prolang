@@ -6,7 +6,7 @@ import (
 )
 
 type Callable interface {
-	Call(inter *Interpreter, args []interface{}) (interface{}, error)
+	Call(*Interpreter, []interface{}) (interface{}, error)
 	ArgsNum() int
 }
 

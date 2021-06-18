@@ -388,7 +388,8 @@ func (inter *Interpreter) VisitWhileStmt(stmt statements.WhileStatement) error {
 func (inter *Interpreter) VisitFunctionStmt(stmt statements.FunctionStatement) error {
 	// after creating the FunctionCallable,
 	// it create a new binding in the current environment and store a reference to it there.
-	function := FunctionCallable{Declaration: stmt}
+	// binding as *FunctionCallable because FunctionCallable implements Callable interface as pointer receiver
+	function := &FunctionCallable{Declaration: stmt}
 	inter.environment.Define(stmt.Name.Lexeme, function)
 	return nil
 }
