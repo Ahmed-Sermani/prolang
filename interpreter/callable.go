@@ -12,6 +12,7 @@ type Callable interface {
 
 type FunctionCallable struct {
 	Declaration statements.FunctionStatement
+	Closure     *environment.Environment
 }
 
 // implementing the callable interface
@@ -20,7 +21,7 @@ func (f *FunctionCallable) Call(inter *Interpreter, args []interface{}) (interfa
 	// define function environment
 	// to handle recursion the environment for function created on
 	// the call not on the function deleration
-	environment := environment.New(inter.global)
+	environment := environment.New(f.Closure)
 
 	// add args to the function environment
 	for i, param := range f.Declaration.Args {
@@ -28,6 +29,13 @@ func (f *FunctionCallable) Call(inter *Interpreter, args []interface{}) (interfa
 	}
 	// execute function body
 	err := inter.executeBlock(f.Declaration.Body, environment)
+
+	// handling the unwind of return statement
+	returnValue, isReturn := err.(ErrorHandleReturn)
+	if isReturn {
+		return returnValue.value, nil
+	}
+	// default return value is nil
 	return nil, err
 }
 

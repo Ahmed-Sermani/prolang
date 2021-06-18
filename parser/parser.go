@@ -152,7 +152,7 @@ func (p *Parser) varDeclaration() (statements.Statement, error) {
 
 }
 
-// statement      → exprStatement | printStatement | block | ifStatement | whileStatement | forStatement;
+// statement       → exprStatement | printStatement | block | ifStatement | whileStatement | forStatement | returnStatement;
 func (p *Parser) statement() (statements.Statement, error) {
 	if p.match(scanner.FOR) {
 		return p.forStatement()
@@ -163,6 +163,9 @@ func (p *Parser) statement() (statements.Statement, error) {
 	if p.match(scanner.PRINT) {
 		return p.printStatement()
 	}
+	if p.match(scanner.RETURN) {
+		return p.returnStatement()
+	}
 	if p.match(scanner.WHILE) {
 		return p.whileStatement()
 	}
@@ -172,6 +175,27 @@ func (p *Parser) statement() (statements.Statement, error) {
 	}
 
 	return p.experssionStatement()
+}
+
+// returnStatement → "return" expression? ";" ;
+func (p *Parser) returnStatement() (statements.Statement, error) {
+	keyword := p.previous()
+	var value expressions.Experssion
+	if !p.check(scanner.SEMICOLON) {
+		value1, err := p.experssion()
+		if err != nil {
+			return nil, err
+		}
+		value = value1
+	}
+	_, err := p.consume(scanner.SEMICOLON, "Expext ';' after return value.")
+	if err != nil {
+		return nil, err
+	}
+	return statements.ReturnStatement{
+		Keyword: keyword,
+		Value:   value,
+	}, nil
 }
 
 // forStatement   → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;

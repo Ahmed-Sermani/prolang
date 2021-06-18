@@ -14,6 +14,7 @@ type StatementVisitor interface {
 	VisitIfStmt(IfStatement) error
 	VisitWhileStmt(WhileStatement) error
 	VisitFunctionStmt(FunctionStatement) error
+	VisitReturnStmt(ReturnStatement) error
 }
 
 type PrintStatement struct {
@@ -78,4 +79,14 @@ type FunctionStatement struct {
 
 func (f FunctionStatement) Accept(visitor StatementVisitor) error {
 	return visitor.VisitFunctionStmt(f)
+}
+
+// It stores the return keyword token for error reporting if needed, and the value being returned
+type ReturnStatement struct {
+	Keyword expressions.Token
+	Value   expressions.Experssion
+}
+
+func (r ReturnStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitReturnStmt(r)
 }
