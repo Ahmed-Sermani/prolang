@@ -57,6 +57,7 @@ type Unary struct {
 // wrapper around the token for the variable name
 type Variable struct {
 	Token Token
+	Uuid  int
 }
 
 // has variable being assigned to, and an expression for the new value

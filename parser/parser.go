@@ -29,6 +29,21 @@ func New(tokens []expressions.Token) *Parser {
 	}
 }
 
+type varUuidGen struct {
+	current int
+}
+
+func (g *varUuidGen) inc() {
+	g.current++
+}
+
+func (g *varUuidGen) gen() int {
+	defer g.inc()
+	return g.current
+}
+
+var varUuid = varUuidGen{}
+
 // start parsing
 // prog           → statement* EOF ;
 func (p *Parser) Parse() []statements.Statement {
@@ -630,7 +645,7 @@ func (p *Parser) primary() (expressions.Experssion, error) {
 			return expressions.Grouping{Expr: expr}, nil
 		}
 	case p.match(scanner.IDENTIFIER):
-		return expressions.Variable{Token: p.previous()}, nil
+		return expressions.Variable{Token: p.previous(), Uuid: varUuid.gen()}, nil
 	}
 	return expressions.Grouping{}, ErrorParsing
 }

@@ -5,6 +5,13 @@ import (
 	"github.com/Ahmed-Sermani/prolang/parser/statements"
 )
 
+// helps to track if the current scope in side a function or not
+// to fix behavior where return statement allowed out side of a function :)
+const (
+	FUNCTION = iota
+	NONE
+)
+
 type Callable interface {
 	Call(*Interpreter, []interface{}) (interface{}, error)
 	ArgsNum() int

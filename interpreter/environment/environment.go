@@ -68,3 +68,27 @@ func (env *Environment) Assgin(t expressions.Token, value interface{}) error {
 	reporting.ReportRuntimeError(err)
 	return err
 }
+
+// walks a fixed number of predecessors up the parent chain and
+// returns the value of the variable in that environment’s map.
+// It doesn’t check if the variable exists because the resolver already found it.
+func (env *Environment) GetAt(level int, t expressions.Token) (interface{}, error) {
+	predecEnv := env.predecessors(level)
+	return predecEnv.values[t.Lexeme], nil
+
+}
+
+func (env *Environment) AssginAt(level int, t expressions.Token, value interface{}) error {
+	predecEnv := env.predecessors(level)
+	predecEnv.values[t.Lexeme] = value
+	return nil
+}
+
+func (env *Environment) predecessors(level int) *Environment {
+	predecEnv := env
+	for i := 0; i < level; i++ {
+		predecEnv = predecEnv.enclosing
+	}
+
+	return predecEnv
+}
