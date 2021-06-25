@@ -12,29 +12,6 @@ import (
 type scope map[string]bool
 type stack []scope
 
-func (s *stack) push(sc scope) {
-	*s = append(*s, sc)
-}
-
-func (s *stack) pop() (scope, bool) {
-	if s.isEmpty() {
-		return scope{}, false
-	} else {
-		index := len(*s) - 1
-		element := (*s)[index]
-		*s = (*s)[:index]
-		return element, true
-	}
-}
-
-func (s *stack) peak() scope {
-	return (*s)[len(*s)-1]
-}
-
-func (s *stack) isEmpty() bool {
-	return len(*s) == 0
-}
-
 // static analysis.
 // resolve variables to solve the problem of dynamic changing environments
 // that apperas with closures.
@@ -43,11 +20,13 @@ func (s *stack) isEmpty() bool {
 // aka persisting static scope.
 // implements statements and expressions visitor interface.
 type Resolver struct {
-	inter  interpreter.Interpreter
+	inter  *interpreter.Interpreter
 	scopes stack
+	// track if it's in a function or global scope
+	curft int
 }
 
-func New(inter interpreter.Interpreter) *Resolver {
+func New(inter *interpreter.Interpreter) *Resolver {
 	return &Resolver{
 		inter: inter,
 		// track the stack of scopes currently in scope.
@@ -56,19 +35,21 @@ func New(inter interpreter.Interpreter) *Resolver {
 		// the boolean value to track the definition.
 		// false if the variable declared but not yet defined, true if both
 		scopes: stack{},
+		// set default start scope type as global scope
+		curft: interpreter.NONE,
 	}
 }
 
 // resolving blocks
 func (resolver *Resolver) VisitBlockStmt(stmt statements.BlockStatement) error {
 	resolver.beginScope()
-	resolver.resolve(stmt.Statements)
+	resolver.Resolve(stmt.Statements)
 	resolver.endScope()
 	return nil
 }
 
 // walks the statements and resolves each one.
-func (resolver *Resolver) resolve(stmts []statements.Statement) {
+func (resolver *Resolver) Resolve(stmts []statements.Statement) {
 	for _, stmt := range stmts {
 		resolver.resolveStmt(stmt)
 	}
@@ -86,27 +67,26 @@ func (resolver *Resolver) resolveExpr(expr expressions.Experssion) {
 }
 
 func (resolver *Resolver) VisitVarDecStmt(stmt statements.VarDecStatement) error {
-	resolver.declare(stmt.Token.Lexeme)
+	resolver.declare(stmt.Token)
 	if stmt.Initializer != nil {
 		resolver.resolveExpr(stmt.Initializer)
 	}
-	resolver.define(stmt.Token.Lexeme)
+	resolver.define(stmt.Token)
 	return nil
 }
 
 func (resolver *Resolver) VisitVairable(expr expressions.Variable) (interface{}, error) {
-	scope, notEmpty := resolver.scopes.pop()
-
-	state, exists := scope[expr.Token.Lexeme]
 	// if the scopes is not empty and the variable is not defined
-	if notEmpty && exists && !state {
-		// Make it an error to reference a variable in its initializer
-		// e.g. let a = 8;
-		// let a = a;
-		reporting.ReportError(expr.Token.Line, fmt.Sprintf("Can't read local variable %s in its own initializer", expr.Token.Lexeme))
-		return nil, nil
+	if len(resolver.scopes) != 0 {
+		flag, exists := resolver.scopes[len(resolver.scopes)-1][expr.Token.Lexeme]
+		if !flag && exists {
+			// Make it an error to reference a variable in its initializer
+			// e.g. let a = 8;
+			// let a = a;
+			reporting.ReportError(expr.Token.Line, fmt.Sprintf("Can't read local variable %s in its own initializer", expr.Token.Lexeme))
+			return nil, nil
+		}
 	}
-
 	resolver.resolveLocalVar(expr, expr.Token.Lexeme)
 	return nil, nil
 }
@@ -121,9 +101,9 @@ func (resolver *Resolver) VisitAssgin(expr expressions.Assgin) (interface{}, err
 
 func (resolver *Resolver) VisitFunctionStmt(stmt statements.FunctionStatement) error {
 	// define the declare the function before resolving to let the function refer to itself
-	resolver.declare(stmt.Name.Lexeme)
-	resolver.define(stmt.Name.Lexeme)
-	resolver.resolveFunction(stmt.Body)
+	resolver.declare(stmt.Name)
+	resolver.define(stmt.Name)
+	resolver.resolveFunction(stmt, interpreter.FUNCTION)
 	return nil
 }
 
@@ -146,36 +126,92 @@ func (resolver *Resolver) VisitPrintStmt(stmt statements.PrintStatement) error {
 	return nil
 }
 
+func (resolver *Resolver) VisitReturnStmt(stmt statements.ReturnStatement) error {
+	// disallow return out side function scope type
+	if resolver.curft == interpreter.NONE {
+		reporting.ReportError(stmt.Keyword.Line, "Return is not allowed outside of a function")
+	}
+	if stmt.Value != nil {
+		resolver.resolveExpr(stmt.Value)
+	}
+	return nil
+}
+
+func (resolver *Resolver) VisitWhileStmt(stmt statements.WhileStatement) error {
+	resolver.resolveExpr(stmt.Condition)
+	resolver.resolveStmt(stmt.Body)
+	return nil
+}
+
+func (resolver *Resolver) VisitBinary(expr expressions.Binary) (interface{}, error) {
+	resolver.resolveExpr(expr.Left)
+	resolver.resolveExpr(expr.Right)
+	return nil, nil
+}
+
+func (resolver *Resolver) VisitCall(expr expressions.Call) (interface{}, error) {
+	resolver.resolveExpr(expr.Callee)
+	for _, arg := range expr.Args {
+		resolver.resolveExpr(arg)
+	}
+	return nil, nil
+}
+
+func (resolver *Resolver) VisitGrouping(expr expressions.Grouping) (interface{}, error) {
+	resolver.resolveExpr(expr.Expr)
+	return nil, nil
+}
+
+func (resolver *Resolver) VisitLogical(expr expressions.Logical) (interface{}, error) {
+	resolver.resolveExpr(expr.Left)
+	resolver.resolveExpr(expr.Right)
+	return nil, nil
+}
+func (resolver *Resolver) VisitUnary(expr expressions.Unary) (interface{}, error) {
+	resolver.resolveExpr(expr.Right)
+	return nil, nil
+}
+func (resolver *Resolver) VisitLiteral(expr expressions.Literal) (interface{}, error) {
+	return nil, nil
+}
+
 // initialize the scope
 func (resolver *Resolver) beginScope() {
-	resolver.scopes.push(scope{})
+	resolver.scopes = append(resolver.scopes, scope{})
 }
 
 func (resolver *Resolver) endScope() {
-	resolver.scopes.pop()
+	resolver.scopes = resolver.scopes[:len(resolver.scopes)-1]
 }
 
 // adds the variable to the innermost scope so that it shadows
 // any outer one and so that it knows the variable exists.
 // marks it as 'not yet ready' by binding its name to false.
 // The value represents whether or not it have finished resolving that variable’s initializer.
-func (resolver *Resolver) declare(name string) {
-	scope, ok := resolver.scopes.pop()
-	if !ok {
+func (resolver *Resolver) declare(name expressions.Token) {
+	if len(resolver.scopes) == 0 {
 		return
 	}
-	scope[name] = false
-	resolver.scopes.push(scope)
+
+	scope := resolver.scopes[len(resolver.scopes)-1]
+	resolver.scopes = resolver.scopes[:len(resolver.scopes)-1]
+	_, containsVar := scope[name.Lexeme]
+	if containsVar {
+		reporting.ReportError(name.Line, fmt.Sprintf("Duplicate decleration of variable '%s' in local scope", name.Lexeme))
+	}
+	scope[name.Lexeme] = false
+	resolver.scopes = append(resolver.scopes, scope)
 }
 
 // resolve the variable in that same scope where the variable exists but is unavailable
-func (resolver *Resolver) define(name string) {
-	scope, ok := resolver.scopes.pop()
-	if !ok {
+func (resolver *Resolver) define(name expressions.Token) {
+	if len(resolver.scopes) == 0 {
 		return
 	}
-	scope[name] = true
-	resolver.scopes.push(scope)
+	scope := resolver.scopes[len(resolver.scopes)-1]
+	resolver.scopes = resolver.scopes[:len(resolver.scopes)-1]
+	scope[name.Lexeme] = true
+	resolver.scopes = append(resolver.scopes, scope)
 }
 
 func (resolver *Resolver) resolveLocalVar(expr expressions.Experssion, name string) {
@@ -186,8 +222,8 @@ func (resolver *Resolver) resolveLocalVar(expr expressions.Experssion, name stri
 	// if it never finds the variable, it will leave it unresolved and assume it’s global.
 	for i := len(resolver.scopes) - 1; i >= 0; i-- {
 		scope := resolver.scopes[i]
-		_, exists := scope[name]
-		if exists {
+		flag := scope[name]
+		if flag {
 			resolver.inter.Resolve(expr, len(resolver.scopes)-1-i)
 		}
 	}
@@ -195,12 +231,17 @@ func (resolver *Resolver) resolveLocalVar(expr expressions.Experssion, name stri
 
 // creates a new scope for the body and then binds variables for each of the parameter
 // then it resolves the function body in that scope
-func (resolver *Resolver) resolveFunction(function statements.FunctionStatement) {
+func (resolver *Resolver) resolveFunction(function statements.FunctionStatement, ft int) {
+	// set the current scope type and save the enclosing one
+	encloseft := resolver.curft
+	resolver.curft = ft
 	resolver.beginScope()
 	for _, arg := range function.Args {
-		resolver.declare(arg.Lexeme)
-		resolver.define(arg.Lexeme)
+		resolver.declare(arg)
+		resolver.define(arg)
 	}
-	resolver.resolve(function.Body)
+	resolver.Resolve(function.Body)
 	resolver.endScope()
+	// restore the enclosing scope type
+	resolver.curft = encloseft
 }

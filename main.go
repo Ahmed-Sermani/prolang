@@ -10,6 +10,7 @@ import (
 	"github.com/Ahmed-Sermani/prolang/interpreter"
 	"github.com/Ahmed-Sermani/prolang/parser"
 	"github.com/Ahmed-Sermani/prolang/reporting"
+	"github.com/Ahmed-Sermani/prolang/resolver"
 	"github.com/Ahmed-Sermani/prolang/scanner"
 )
 
@@ -64,7 +65,19 @@ func run(source string) {
 		return
 	}
 	inter := interpreter.New()
+
+	// running the resolver (static analysis)
+	resolver := resolver.New(inter)
+	resolver.Resolve(stmts)
+
+	// stop if there is a resolver error
+	if reporting.HadError() {
+		return
+	}
+
+	// running the interpreter
 	inter.Interpret(stmts)
+
 	// pv := parser.PrintVisitor{}
 	// res, _ := pv.Print(expr)
 	// fmt.Println(res)
