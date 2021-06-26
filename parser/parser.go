@@ -45,7 +45,7 @@ func (g *varUuidGen) gen() int {
 var varUuid = varUuidGen{}
 
 // start parsing
-// prog           → statement* EOF ;
+// prog           → declaration* EOF ;
 func (p *Parser) Parse() []statements.Statement {
 	statements := []statements.Statement{}
 	for !p.isAtEnd() {
@@ -70,9 +70,17 @@ func (p *Parser) block() ([]statements.Statement, error) {
 	return stmts, nil
 }
 
-// declaration     → varDeclaration | statement | funcDeclaration ;
+// declaration     → varDeclaration | statement | funcDeclaration | classDeclaration ;
 func (p *Parser) declaration() statements.Statement {
 	var err error
+	if p.match(scanner.CLASS) {
+		stmt, err := p.classDeclaration()
+		if err != nil {
+			p.synchronize()
+			return nil
+		}
+		return stmt
+	}
 	if p.match(scanner.FUNC) {
 		stmt, err := p.function("function")
 		if err != nil {
@@ -98,6 +106,38 @@ func (p *Parser) declaration() statements.Statement {
 		return nil
 	}
 	return stmt
+
+}
+
+// classDeclaration → "class" IDENTIFIER "{" function* "}" ;
+func (p *Parser) classDeclaration() (statements.Statement, error) {
+	name, err := p.consume(scanner.IDENTIFIER, "Expect class name")
+	if err != nil {
+		return nil, err
+	}
+	_, err1 := p.consume(scanner.LEFT_BRACE, "Expect '{' after class name")
+	if err1 != nil {
+		return nil, err1
+	}
+	methods := []statements.FunctionStatement{}
+
+	for !p.check(scanner.RIGHT_BRACE) && !p.isAtEnd() {
+		method, err := p.function("method")
+		if err != nil {
+			return nil, err
+		}
+		methods = append(methods, method.(statements.FunctionStatement))
+	}
+
+	_, err3 := p.consume(scanner.RIGHT_BRACE, "Expect '}' after class body")
+	if err3 != nil {
+		return nil, err3
+	}
+
+	return statements.ClassStatement{
+		Name:    name,
+		Methods: methods,
+	}, nil
 
 }
 
@@ -394,7 +434,7 @@ func (p *Parser) experssion() (expressions.Experssion, error) {
 	return p.assignment()
 }
 
-// assignment     → IDENTIFIER "=" assignment | logicalOr ;
+// assignment     → ( call "." )? IDENTIFIER "=" assignment | logicalOr ;
 func (p *Parser) assignment() (expressions.Experssion, error) {
 	expr, err := p.logicalOr()
 	if err != nil {
@@ -413,6 +453,9 @@ func (p *Parser) assignment() (expressions.Experssion, error) {
 		// convert the r-value expression node into an l-value representation
 		if varExpr, ok := expr.(expressions.Variable); ok {
 			return expressions.Assgin{Token: varExpr.Token, Value: val}, nil
+			// handle turning an PropertyAccess expression on the left into the corresponding PropertyAssignment.
+		} else if access, ok := expr.(expressions.PropertyAccess); ok {
+			return expressions.PropertyAssignment{Name: access.Name, Obj: access.Obj, Value: val}, nil
 		}
 
 		reporting.ReportError(equals.Line, ErrorInvalidAssginTarget.Error())
@@ -586,6 +629,12 @@ func (p *Parser) call() (expressions.Experssion, error) {
 			if err != nil {
 				return nil, err
 			}
+		} else if p.match(scanner.DOT) {
+			name, err := p.consume(scanner.IDENTIFIER, "Expect property name after '.'")
+			if err != nil {
+				return nil, err
+			}
+			expr = expressions.PropertyAccess{Name: name, Obj: expr}
 		} else {
 			break
 		}
@@ -644,6 +693,8 @@ func (p *Parser) primary() (expressions.Experssion, error) {
 			}
 			return expressions.Grouping{Expr: expr}, nil
 		}
+	case p.match(scanner.THIS):
+		return expressions.This{Keywork: p.previous()}, nil
 	case p.match(scanner.IDENTIFIER):
 		return expressions.Variable{Token: p.previous(), Uuid: varUuid.gen()}, nil
 	}
@@ -800,6 +851,21 @@ func (pv PrintVisitor) VisitLogical(expr expressions.Logical) (interface{}, erro
 
 // not implemented
 func (pv PrintVisitor) VisitCall(expr expressions.Call) (interface{}, error) {
+	return nil, nil
+}
+
+// not implemented
+func (pv PrintVisitor) VisitPropertyAccess(expr expressions.PropertyAccess) (interface{}, error) {
+	return nil, nil
+}
+
+// not implemented
+func (pv PrintVisitor) VisitPropertyAssignment(expr expressions.PropertyAssignment) (interface{}, error) {
+	return nil, nil
+}
+
+// not implemented
+func (pv PrintVisitor) VisitThis(expr expressions.This) (interface{}, error) {
 	return nil, nil
 }
 

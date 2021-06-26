@@ -15,6 +15,7 @@ type StatementVisitor interface {
 	VisitWhileStmt(WhileStatement) error
 	VisitFunctionStmt(FunctionStatement) error
 	VisitReturnStmt(ReturnStatement) error
+	VisitClassStmt(ClassStatement) error
 }
 
 type PrintStatement struct {
@@ -89,4 +90,13 @@ type ReturnStatement struct {
 
 func (r ReturnStatement) Accept(visitor StatementVisitor) error {
 	return visitor.VisitReturnStmt(r)
+}
+
+type ClassStatement struct {
+	Name    expressions.Token
+	Methods []FunctionStatement
+}
+
+func (c ClassStatement) Accept(visitor StatementVisitor) error {
+	return visitor.VisitClassStmt(c)
 }

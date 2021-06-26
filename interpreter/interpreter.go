@@ -13,13 +13,13 @@ import (
 )
 
 // Runtime errors
-type ErrorExpressionInterpretation struct {
+type InterpretationError struct {
 	token expressions.Token
 	msg   string
 }
 
 // implementing the error interface
-func (e *ErrorExpressionInterpretation) Error() string {
+func (e *InterpretationError) Error() string {
 	if e.msg == "" {
 		e.msg = "error while interpreting expressions"
 	}
@@ -27,15 +27,27 @@ func (e *ErrorExpressionInterpretation) Error() string {
 }
 
 type ErrorOpNumMismatch struct {
-	ErrorExpressionInterpretation
+	InterpretationError
 }
 
 type ObjNotCallable struct {
-	ErrorExpressionInterpretation
+	InterpretationError
 }
 
 type ArgsNumMismatch struct {
-	ErrorExpressionInterpretation
+	InterpretationError
+}
+
+type InvalidPropertyAccess struct {
+	InterpretationError
+}
+
+type UndefinedProperty struct {
+	InterpretationError
+}
+
+type InvalidFieldAssignment struct {
+	InterpretationError
 }
 
 // error to handle unwind for return statement
@@ -120,18 +132,18 @@ func (inter *Interpreter) VisitUnary(expr expressions.Unary) (interface{}, error
 		return !isTruthy(refVal), nil
 	}
 
-	return nil, &ErrorExpressionInterpretation{token: expr.Operator}
+	return nil, &InterpretationError{token: expr.Operator}
 }
 
 func (inter *Interpreter) VisitBinary(expr expressions.Binary) (interface{}, error) {
 
 	left, err := inter.evaluate(expr.Left)
 	if err != nil {
-		return nil, &ErrorExpressionInterpretation{token: expr.Operator}
+		return nil, &InterpretationError{token: expr.Operator}
 	}
 	right, err := inter.evaluate(expr.Right)
 	if err != nil {
-		return nil, &ErrorExpressionInterpretation{token: expr.Operator}
+		return nil, &InterpretationError{token: expr.Operator}
 	}
 
 	switch expr.Operator.Kind {
@@ -188,7 +200,7 @@ func (inter *Interpreter) VisitBinary(expr expressions.Binary) (interface{}, err
 			return lRefVal.String() + rRefVal.String(), nil
 		} else {
 			return nil, &ErrorOpNumMismatch{
-				ErrorExpressionInterpretation{
+				InterpretationError{
 					token: expr.Operator,
 					msg:   "Operands must be two numbers or two strings",
 				},
@@ -250,7 +262,7 @@ func (inter *Interpreter) VisitBinary(expr expressions.Binary) (interface{}, err
 		return !isEqual(left, right), nil
 	}
 
-	return nil, &ErrorExpressionInterpretation{token: expr.Operator}
+	return nil, &InterpretationError{token: expr.Operator}
 }
 
 func (inter *Interpreter) VisitVairable(expr expressions.Variable) (interface{}, error) {
@@ -312,7 +324,7 @@ func (inter *Interpreter) VisitCall(expr expressions.Call) (interface{}, error) 
 	function, ok := callee.(Callable)
 	if !ok {
 		return nil, &ObjNotCallable{
-			ErrorExpressionInterpretation: ErrorExpressionInterpretation{
+			InterpretationError: InterpretationError{
 				msg: fmt.Sprintf("Object %s is not callable", callee),
 			},
 		}
@@ -320,13 +332,62 @@ func (inter *Interpreter) VisitCall(expr expressions.Call) (interface{}, error) 
 
 	if len(args) != function.ArgsNum() {
 		return nil, &ObjNotCallable{
-			ErrorExpressionInterpretation: ErrorExpressionInterpretation{
+			InterpretationError: InterpretationError{
 				msg: fmt.Sprintf("Function %s does not have the correct number of arguments", callee),
 			},
 		}
 	}
 	return function.Call(inter, args)
 
+}
+
+func (inter *Interpreter) VisitPropertyAccess(expr expressions.PropertyAccess) (interface{}, error) {
+	obj, err := inter.evaluate(expr.Obj)
+	if err != nil {
+		return nil, err
+	}
+	instance, ok := obj.(*Instance)
+	if ok {
+		property, err := instance.Get(expr.Name)
+		if err != nil {
+			return nil, err
+		}
+		return property, nil
+	}
+
+	err1 := &InvalidPropertyAccess{
+		InterpretationError: InterpretationError{
+			msg: "not an instance, only instances have properties ",
+		},
+	}
+	return nil, err1
+
+}
+
+func (inter *Interpreter) VisitPropertyAssignment(expr expressions.PropertyAssignment) (interface{}, error) {
+	obj, err := inter.evaluate(expr.Obj)
+	if err != nil {
+		return nil, err
+	}
+	instance, ok := obj.(*Instance)
+	if !ok {
+		return nil, &InvalidFieldAssignment{
+			InterpretationError: InterpretationError{
+				msg: "not an instance, field assignment only allowed on instances",
+			},
+		}
+	}
+	value, err := inter.evaluate(expr.Value)
+	if err != nil {
+		return nil, err
+	}
+	instance.Set(expr.Name, value)
+	return value, nil
+}
+
+// since to bound to the method it's the same as interpreting variables expression
+func (inter *Interpreter) VisitThis(expr expressions.This) (interface{}, error) {
+	return inter.lookUpVar(expr.Keywork, expr)
 }
 
 func (inter *Interpreter) VisitExprStmt(stmt statements.ExperssionStatement) error {
@@ -428,6 +489,23 @@ func (inter *Interpreter) VisitReturnStmt(stmt statements.ReturnStatement) error
 	return ErrorHandleReturn{value: value}
 }
 
+func (inter *Interpreter) VisitClassStmt(stmt statements.ClassStatement) error {
+	// two stage binding to allow referencing the class inside its own methods
+	inter.environment.Define(stmt.Name.Lexeme, nil)
+
+	methods := map[string]*FunctionCallable{}
+
+	// Each method declaration converted into a FunctionCallable object
+	// flag the initializer if exists
+	for _, method := range stmt.Methods {
+		function := &FunctionCallable{Declaration: method, Closure: inter.environment, IsInit: method.Name.Lexeme == "init"}
+		methods[method.Name.Lexeme] = function
+	}
+	class := &ClassCallable{name: stmt.Name.Lexeme, methods: methods}
+	err := inter.environment.Assgin(stmt.Name, class)
+	return err
+}
+
 func (inter *Interpreter) executeBlock(stmts []statements.Statement, innerEnv *environment.Environment) error {
 	// save the outer env
 	outerEnv := inter.environment
@@ -485,7 +563,7 @@ func reflectFloat64(ref reflect.Value, operator expressions.Token) (float64, err
 func checkNumOperands(operand reflect.Value, operator expressions.Token) error {
 	if operand.Kind() != reflect.Float64 {
 		return &ErrorOpNumMismatch{
-			ErrorExpressionInterpretation{
+			InterpretationError{
 				token: operator,
 				msg:   "Operand must be a number.",
 			},
@@ -508,6 +586,17 @@ func stringify(obj interface{}) string {
 
 	if refVal.Kind() == reflect.Bool {
 		return strconv.FormatBool(refVal.Bool())
+	}
+
+	if refVal.Kind() == reflect.Ptr {
+		// handle stringer on pointer receiver
+		stringerFunc := refVal.MethodByName("String")
+		if stringerFunc.IsValid() {
+			output := stringerFunc.Call([]reflect.Value{})
+			if len(output) != 0 {
+				return output[0].String()
+			}
+		}
 	}
 
 	return refVal.String()

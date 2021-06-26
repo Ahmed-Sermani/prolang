@@ -30,6 +30,9 @@ type ExpressionVisitor interface {
 	VisitAssgin(Assgin) (interface{}, error)
 	VisitLogical(Logical) (interface{}, error)
 	VisitCall(Call) (interface{}, error)
+	VisitPropertyAccess(PropertyAccess) (interface{}, error)
+	VisitPropertyAssignment(PropertyAssignment) (interface{}, error)
+	VisitThis(This) (interface{}, error)
 }
 
 type Binary struct {
@@ -82,6 +85,21 @@ type Call struct {
 	Args    []Experssion
 }
 
+type PropertyAccess struct {
+	Name Token
+	Obj  Experssion
+}
+
+type PropertyAssignment struct {
+	Name  Token
+	Obj   Experssion
+	Value Experssion
+}
+
+type This struct {
+	Keywork Token
+}
+
 func (g Grouping) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitGrouping(g)
 }
@@ -112,4 +130,16 @@ func (l Logical) Accept(visitor ExpressionVisitor) (interface{}, error) {
 
 func (c Call) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitCall(c)
+}
+
+func (p PropertyAccess) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitPropertyAccess(p)
+}
+
+func (p PropertyAssignment) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitPropertyAssignment(p)
+}
+
+func (t This) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitThis(t)
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/Ahmed-Sermani/prolang/interpreter"
+	"github.com/Ahmed-Sermani/prolang/interpreter/callableenum"
+	"github.com/Ahmed-Sermani/prolang/interpreter/classenum"
 	"github.com/Ahmed-Sermani/prolang/parser/expressions"
 	"github.com/Ahmed-Sermani/prolang/parser/statements"
 	"github.com/Ahmed-Sermani/prolang/reporting"
@@ -24,6 +26,8 @@ type Resolver struct {
 	scopes stack
 	// track if it's in a function or global scope
 	curft int
+	// track if it's in a method in class
+	curcls int
 }
 
 func New(inter *interpreter.Interpreter) *Resolver {
@@ -36,7 +40,7 @@ func New(inter *interpreter.Interpreter) *Resolver {
 		// false if the variable declared but not yet defined, true if both
 		scopes: stack{},
 		// set default start scope type as global scope
-		curft: interpreter.NONE,
+		curft: callableenum.NONE,
 	}
 }
 
@@ -99,11 +103,21 @@ func (resolver *Resolver) VisitAssgin(expr expressions.Assgin) (interface{}, err
 	return nil, nil
 }
 
+func (resolver *Resolver) VisitThis(expr expressions.This) (interface{}, error) {
+
+	// check if 'this' is used outside of a method body
+	if resolver.curcls == classenum.NONE {
+		reporting.ReportError(expr.Keywork.Line, "Can't use 'this' keyword outside of a class")
+		return nil, nil
+	}
+	resolver.resolveLocalVar(expr, expr.Keywork.Lexeme)
+	return nil, nil
+}
 func (resolver *Resolver) VisitFunctionStmt(stmt statements.FunctionStatement) error {
 	// define the declare the function before resolving to let the function refer to itself
 	resolver.declare(stmt.Name)
 	resolver.define(stmt.Name)
-	resolver.resolveFunction(stmt, interpreter.FUNCTION)
+	resolver.resolveFunction(stmt, callableenum.FUNCTION)
 	return nil
 }
 
@@ -128,8 +142,10 @@ func (resolver *Resolver) VisitPrintStmt(stmt statements.PrintStatement) error {
 
 func (resolver *Resolver) VisitReturnStmt(stmt statements.ReturnStatement) error {
 	// disallow return out side function scope type
-	if resolver.curft == interpreter.NONE {
+	if resolver.curft == callableenum.NONE {
 		reporting.ReportError(stmt.Keyword.Line, "Return is not allowed outside of a function")
+	} else if resolver.curft == callableenum.INITIALIZER {
+		reporting.ReportError(stmt.Keyword.Line, "Can't use 'return' in an initializer")
 	}
 	if stmt.Value != nil {
 		resolver.resolveExpr(stmt.Value)
@@ -140,6 +156,35 @@ func (resolver *Resolver) VisitReturnStmt(stmt statements.ReturnStatement) error
 func (resolver *Resolver) VisitWhileStmt(stmt statements.WhileStatement) error {
 	resolver.resolveExpr(stmt.Condition)
 	resolver.resolveStmt(stmt.Body)
+	return nil
+}
+
+func (resolver *Resolver) VisitClassStmt(stmt statements.ClassStatement) error {
+	curcls := resolver.curcls
+	resolver.curcls = classenum.CLASS
+	defer func() {
+		resolver.curcls = curcls
+	}()
+	// defining class directly to allow the methods to reference it's class
+	resolver.declare(stmt.Name)
+	resolver.define(stmt.Name)
+
+	// define “this”
+	resolver.beginScope()
+	scope := resolver.scopes[len(resolver.scopes)-1]
+	resolver.scopes = resolver.scopes[:len(resolver.scopes)-1]
+	scope["this"] = true
+	resolver.scopes = append(resolver.scopes, scope)
+
+	// resolver class methods
+	for _, method := range stmt.Methods {
+		ft := callableenum.METHOD
+		if method.Name.Lexeme == "init" {
+			ft = callableenum.INITIALIZER
+		}
+		resolver.resolveFunction(method, ft)
+	}
+	resolver.endScope()
 	return nil
 }
 
@@ -172,6 +217,20 @@ func (resolver *Resolver) VisitUnary(expr expressions.Unary) (interface{}, error
 	return nil, nil
 }
 func (resolver *Resolver) VisitLiteral(expr expressions.Literal) (interface{}, error) {
+	return nil, nil
+}
+
+// Since properties are looked up dynamically,
+// they don’t get resolved. During resolution, it recurse only into the expression to the left of the dot.
+// The actual property access happens in the interpreter.
+func (resolver *Resolver) VisitPropertyAccess(expr expressions.PropertyAccess) (interface{}, error) {
+	resolver.resolveExpr(expr.Obj)
+	return nil, nil
+}
+
+func (resolver *Resolver) VisitPropertyAssignment(expr expressions.PropertyAssignment) (interface{}, error) {
+	resolver.resolveExpr(expr.Value)
+	resolver.resolveExpr(expr.Obj)
 	return nil, nil
 }
 
