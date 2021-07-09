@@ -7,8 +7,6 @@ import (
 	"github.com/Ahmed-Sermani/prolang/reporting"
 )
 
-// variable manager
-
 type ErrorUndefinedVairable struct {
 	msg string
 }
@@ -32,6 +30,10 @@ func New(enclosing *Environment) *Environment {
 		values:    map[string]interface{}{},
 		enclosing: enclosing,
 	}
+}
+
+func (env *Environment) GetEnclosing() *Environment {
+	return env.enclosing
 }
 
 func (env *Environment) Define(name string, value interface{}) {
@@ -75,7 +77,6 @@ func (env *Environment) Assgin(t expressions.Token, value interface{}) error {
 func (env *Environment) GetAt(level int, t expressions.Token) (interface{}, error) {
 	predecEnv := env.predecessors(level)
 	return predecEnv.values[t.Lexeme], nil
-
 }
 
 func (env *Environment) AssginAt(level int, t expressions.Token, value interface{}) error {

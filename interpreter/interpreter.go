@@ -50,6 +50,10 @@ type InvalidFieldAssignment struct {
 	InterpretationError
 }
 
+type InvalidSuperclass struct {
+	InterpretationError
+}
+
 // error to handle unwind for return statement
 type ErrorHandleReturn struct {
 	value interface{}
@@ -355,12 +359,12 @@ func (inter *Interpreter) VisitPropertyAccess(expr expressions.PropertyAccess) (
 		return property, nil
 	}
 
-	err1 := &InvalidPropertyAccess{
+	err = &InvalidPropertyAccess{
 		InterpretationError: InterpretationError{
 			msg: "not an instance, only instances have properties ",
 		},
 	}
-	return nil, err1
+	return nil, err
 
 }
 
@@ -388,6 +392,34 @@ func (inter *Interpreter) VisitPropertyAssignment(expr expressions.PropertyAssig
 // since to bound to the method it's the same as interpreting variables expression
 func (inter *Interpreter) VisitThis(expr expressions.This) (interface{}, error) {
 	return inter.lookUpVar(expr.Keywork, expr)
+}
+
+func (inter *Interpreter) VisitSuper(expr expressions.Super) (interface{}, error) {
+	// looking up 'super' in the proper env
+	level := inter.locals[expr]
+	superclass, err := inter.environment.GetAt(*level, expressions.Token{Lexeme: "super"})
+	if err != nil {
+		return nil, err
+	}
+	// getting 'this' from the previous environment
+	this, err := inter.environment.GetAt(*level-1, expressions.Token{Lexeme: "this"})
+	if err != nil {
+		return nil, err
+	}
+	super := superclass.(*ClassCallable)
+	method := super.lookForMethod(expr.Method.Lexeme)
+	if method == nil {
+		return nil, &UndefinedProperty{
+			InterpretationError: InterpretationError{
+				msg: "Undefined property " + expr.Method.Lexeme,
+			},
+		}
+	}
+	instance, ok := this.(*Instance)
+	if !ok {
+		return nil, &InterpretationError{msg: "Undefined Instance"}
+	}
+	return method.bind(instance), nil
 }
 
 func (inter *Interpreter) VisitExprStmt(stmt statements.ExperssionStatement) error {
@@ -428,7 +460,7 @@ func (inter *Interpreter) VisitBlockStmt(stmt statements.BlockStatement) error {
 }
 
 // evaluates the condition. If truthy, executes the then branch.
-// Otherwise, if there is an else branch, executes that.
+// Otherwise, if there is an else branch, execute that.
 func (inter *Interpreter) VisitIfStmt(stmt statements.IfStatement) error {
 	conditionValue, err := inter.evaluate(stmt.Condition)
 	if err != nil {
@@ -458,15 +490,15 @@ func (inter *Interpreter) VisitWhileStmt(stmt statements.WhileStatement) error {
 		if !isTruthy(reflect.ValueOf(condiction)) {
 			break
 		}
-		err1 := inter.execute(stmt.Body)
-		if err1 != nil {
+		err = inter.execute(stmt.Body)
+		if err != nil {
 			return nil
 		}
 	}
 	return nil
 }
 
-// convert function complie time representation to its runtime representation
+// convert function parse time representation to its runtime representation
 func (inter *Interpreter) VisitFunctionStmt(stmt statements.FunctionStatement) error {
 	// after creating the FunctionCallable,
 	// it create a new binding in the current environment and store a reference to it there.
@@ -490,8 +522,34 @@ func (inter *Interpreter) VisitReturnStmt(stmt statements.ReturnStatement) error
 }
 
 func (inter *Interpreter) VisitClassStmt(stmt statements.ClassStatement) error {
+
+	// evaluate the superclass expression if exists
+	// also check that it's evaluated to a class
+	var superclass interface{}
+	if stmt.Superclass.Token.Lexeme != "" {
+		super, err := inter.evaluate(stmt.Superclass)
+		if err != nil {
+			return err
+		}
+
+		if _, ok := super.(*ClassCallable); !ok {
+			return &InvalidSuperclass{
+				InterpretationError: InterpretationError{
+					msg: "Superclass must be a class",
+				},
+			}
+		}
+		superclass = super
+	}
+
 	// two stage binding to allow referencing the class inside its own methods
 	inter.environment.Define(stmt.Name.Lexeme, nil)
+
+	// set super environment
+	if stmt.Superclass.Token.Lexeme != "" {
+		inter.environment = environment.New(inter.environment)
+		inter.environment.Define("super", superclass)
+	}
 
 	methods := map[string]*FunctionCallable{}
 
@@ -501,7 +559,19 @@ func (inter *Interpreter) VisitClassStmt(stmt statements.ClassStatement) error {
 		function := &FunctionCallable{Declaration: method, Closure: inter.environment, IsInit: method.Name.Lexeme == "init"}
 		methods[method.Name.Lexeme] = function
 	}
-	class := &ClassCallable{name: stmt.Name.Lexeme, methods: methods}
+	var class *ClassCallable
+	super, ok := superclass.(*ClassCallable)
+	if ok {
+		class = &ClassCallable{name: stmt.Name.Lexeme, methods: methods, superclass: super}
+	} else {
+		class = &ClassCallable{name: stmt.Name.Lexeme, methods: methods}
+	}
+
+	// pop the super environment
+	if stmt.Superclass.Token.Lexeme != "" {
+		inter.environment = inter.environment.GetEnclosing()
+	}
+
 	err := inter.environment.Assgin(stmt.Name, class)
 	return err
 }
@@ -530,6 +600,7 @@ func (inter *Interpreter) evaluate(expr expressions.Experssion) (interface{}, er
 	return expr.Accept(inter)
 }
 
+// Append new variable resolution (used by the resolver)
 func (inter *Interpreter) Resolve(expr expressions.Experssion, level int) {
 	inter.locals[expr] = &level
 }
@@ -572,7 +643,7 @@ func checkNumOperands(operand reflect.Value, operator expressions.Token) error {
 	return nil
 }
 
-// used for debugging. convert obj of type interface{} to string
+// convert obj of type interface{} into its approperate string representation
 func stringify(obj interface{}) string {
 	refVal := reflect.ValueOf(obj)
 	if refVal.Kind() == reflect.Ptr && refVal.IsNil() {

@@ -53,28 +53,30 @@ const (
 	TRUE
 	LET
 	WHILE
+	EXTENDS
 
 	EOF
 )
 
 // reserved keywords
 var keywords = map[string]expressions.TokenType{
-	"and":    AND,
-	"class":  CLASS,
-	"else":   ELSE,
-	"false":  FALSE,
-	"for":    FOR,
-	"func":   FUNC,
-	"if":     IF,
-	"nil":    NIL,
-	"or":     OR,
-	"print":  PRINT,
-	"return": RETURN,
-	"super":  SUPER,
-	"this":   THIS,
-	"true":   TRUE,
-	"let":    LET,
-	"while":  WHILE,
+	"and":     AND,
+	"class":   CLASS,
+	"else":    ELSE,
+	"false":   FALSE,
+	"for":     FOR,
+	"func":    FUNC,
+	"if":      IF,
+	"nil":     NIL,
+	"or":      OR,
+	"print":   PRINT,
+	"return":  RETURN,
+	"super":   SUPER,
+	"this":    THIS,
+	"true":    TRUE,
+	"let":     LET,
+	"while":   WHILE,
+	"extends": EXTENDS,
 }
 
 type Scanner struct {

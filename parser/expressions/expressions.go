@@ -33,6 +33,7 @@ type ExpressionVisitor interface {
 	VisitPropertyAccess(PropertyAccess) (interface{}, error)
 	VisitPropertyAssignment(PropertyAssignment) (interface{}, error)
 	VisitThis(This) (interface{}, error)
+	VisitSuper(Super) (interface{}, error)
 }
 
 type Binary struct {
@@ -100,6 +101,11 @@ type This struct {
 	Keywork Token
 }
 
+type Super struct {
+	Keyword Token
+	Method  Token
+}
+
 func (g Grouping) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitGrouping(g)
 }
@@ -142,4 +148,8 @@ func (p PropertyAssignment) Accept(visitor ExpressionVisitor) (interface{}, erro
 
 func (t This) Accept(visitor ExpressionVisitor) (interface{}, error) {
 	return visitor.VisitThis(t)
+}
+
+func (s Super) Accept(visitor ExpressionVisitor) (interface{}, error) {
+	return visitor.VisitSuper(s)
 }

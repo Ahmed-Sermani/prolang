@@ -93,8 +93,9 @@ func (r ReturnStatement) Accept(visitor StatementVisitor) error {
 }
 
 type ClassStatement struct {
-	Name    expressions.Token
-	Methods []FunctionStatement
+	Name       expressions.Token
+	Methods    []FunctionStatement
+	Superclass expressions.Variable
 }
 
 func (c ClassStatement) Accept(visitor StatementVisitor) error {

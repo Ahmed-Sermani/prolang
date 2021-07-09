@@ -20,7 +20,7 @@ func Report(line int, where string, msg string) {
 }
 
 func ReportRuntimeError(err error) {
-	log.Println(err.Error())
+	log.Println("Runtime Error: " + err.Error())
 	SetRuntimeError()
 }
 

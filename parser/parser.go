@@ -22,7 +22,6 @@ type Parser struct {
 }
 
 func New(tokens []expressions.Token) *Parser {
-
 	return &Parser{
 		tokens:  tokens,
 		current: 0,
@@ -109,15 +108,26 @@ func (p *Parser) declaration() statements.Statement {
 
 }
 
-// classDeclaration → "class" IDENTIFIER "{" function* "}" ;
+// classDeclaration → "class" IDENTIFIER ( "extends" IDENTIFIER )? "{" function* "}" ;
 func (p *Parser) classDeclaration() (statements.Statement, error) {
 	name, err := p.consume(scanner.IDENTIFIER, "Expect class name")
 	if err != nil {
 		return nil, err
 	}
-	_, err1 := p.consume(scanner.LEFT_BRACE, "Expect '{' after class name")
-	if err1 != nil {
-		return nil, err1
+	var superclass expressions.Variable
+	if p.match(scanner.EXTENDS) {
+		_, err := p.consume(scanner.IDENTIFIER, "Expect superclass name")
+		if err != nil {
+			return nil, err
+		}
+		// parse the superclass as variable not token,
+		// so referencing not evaluated superclass is not allowed
+		superclass = expressions.Variable{Token: p.previous(), Uuid: varUuid.gen()}
+
+	}
+	_, err = p.consume(scanner.LEFT_BRACE, "Expect '{' after class name")
+	if err != nil {
+		return nil, err
 	}
 	methods := []statements.FunctionStatement{}
 
@@ -129,14 +139,15 @@ func (p *Parser) classDeclaration() (statements.Statement, error) {
 		methods = append(methods, method.(statements.FunctionStatement))
 	}
 
-	_, err3 := p.consume(scanner.RIGHT_BRACE, "Expect '}' after class body")
-	if err3 != nil {
-		return nil, err3
+	_, err = p.consume(scanner.RIGHT_BRACE, "Expect '}' after class body")
+	if err != nil {
+		return nil, err
 	}
 
 	return statements.ClassStatement{
-		Name:    name,
-		Methods: methods,
+		Name:       name,
+		Methods:    methods,
+		Superclass: superclass,
 	}, nil
 
 }
@@ -146,9 +157,9 @@ func (p *Parser) function(kind string) (statements.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err2 := p.consume(scanner.LEFT_PAREN, "Expect '(' after "+kind+" name.")
-	if err2 != nil {
-		return nil, err2
+	_, err = p.consume(scanner.LEFT_PAREN, "Expect '(' after "+kind+" name.")
+	if err != nil {
+		return nil, err
 	}
 	paramenters := []expressions.Token{}
 
@@ -164,13 +175,13 @@ func (p *Parser) function(kind string) (statements.Statement, error) {
 			}
 		}
 	}
-	_, err1 := p.consume(scanner.RIGHT_PAREN, "Expect ')' after parameters")
-	if err1 != nil {
-		return nil, err1
+	_, err = p.consume(scanner.RIGHT_PAREN, "Expect ')' after parameters")
+	if err != nil {
+		return nil, err
 	}
-	_, err3 := p.consume(scanner.LEFT_BRACE, "Expect '{' before "+kind+" body.")
-	if err3 != nil {
-		return nil, err3
+	_, err = p.consume(scanner.LEFT_BRACE, "Expect '{' before "+kind+" body.")
+	if err != nil {
+		return nil, err
 	}
 	body, err := p.block()
 	if err != nil {
@@ -184,6 +195,7 @@ func (p *Parser) function(kind string) (statements.Statement, error) {
 	}, nil
 }
 
+// varDeclaration   → "let" IDENTIFIER ( "=" expression )? ";" ;
 func (p *Parser) varDeclaration() (statements.Statement, error) {
 	name, err := p.consume(scanner.IDENTIFIER, "Expect variable name.")
 	if err != nil {
@@ -196,9 +208,9 @@ func (p *Parser) varDeclaration() (statements.Statement, error) {
 			return nil, err
 		}
 	}
-	_, err1 := p.consume(scanner.SEMICOLON, "Expect ';' after variable declaration.")
-	if err1 != nil {
-		return nil, err1
+	_, err = p.consume(scanner.SEMICOLON, "Expect ';' after variable declaration.")
+	if err != nil {
+		return nil, err
 	}
 	return statements.VarDecStatement{
 		Token:       name,
@@ -286,9 +298,9 @@ func (p *Parser) forStatement() (statements.Statement, error) {
 			return nil, err
 		}
 	}
-	_, err1 := p.consume(scanner.SEMICOLON, "Expect ';' after loop condition")
-	if err1 != nil {
-		return nil, err1
+	_, err = p.consume(scanner.SEMICOLON, "Expect ';' after loop condition")
+	if err != nil {
+		return nil, err
 	}
 
 	var increment expressions.Experssion
@@ -299,9 +311,9 @@ func (p *Parser) forStatement() (statements.Statement, error) {
 			return nil, err
 		}
 	}
-	_, err2 := p.consume(scanner.RIGHT_PAREN, "Expect ')' after for clauses.")
-	if err2 != nil {
-		return nil, err2
+	_, err = p.consume(scanner.RIGHT_PAREN, "Expect ')' after for clauses.")
+	if err != nil {
+		return nil, err
 	}
 
 	body, err := p.statement()
@@ -351,9 +363,9 @@ func (p *Parser) whileStatement() (statements.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err1 := p.consume(scanner.RIGHT_PAREN, "Expect ')' after condition")
-	if err1 != nil {
-		return nil, err1
+	_, err = p.consume(scanner.RIGHT_PAREN, "Expect ')' after condition")
+	if err != nil {
+		return nil, err
 	}
 	body, err := p.statement()
 	if err != nil {
@@ -377,13 +389,13 @@ func (p *Parser) ifStatement() (statements.Statement, error) {
 		return nil, err
 	}
 
-	_, err1 := p.consume(scanner.RIGHT_PAREN, "Expected ')' after condition")
-	if err1 != nil {
+	_, err = p.consume(scanner.RIGHT_PAREN, "Expected ')' after condition")
+	if err != nil {
 		return nil, err
 	}
-	thenBranch, err1 := p.statement()
+	thenBranch, err := p.statement()
 
-	if err1 != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -409,8 +421,8 @@ func (p *Parser) printStatement() (statements.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err1 := p.consume(scanner.SEMICOLON, "Expected ';' after expression.")
-	if err1 != nil {
+	_, err = p.consume(scanner.SEMICOLON, "Expected ';' after expression.")
+	if err != nil {
 		return nil, err
 	}
 	return statements.PrintStatement{Expr: val}, nil
@@ -422,8 +434,8 @@ func (p *Parser) experssionStatement() (statements.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err1 := p.consume(scanner.SEMICOLON, "Expected ';' after value.")
-	if err1 != nil {
+	_, err = p.consume(scanner.SEMICOLON, "Expected ';' after value.")
+	if err != nil {
 		return nil, err
 	}
 	return statements.ExperssionStatement{Expr: val}, nil
@@ -670,7 +682,7 @@ func (p *Parser) followCall(callee expressions.Experssion) (expressions.Experssi
 	}, nil
 }
 
-// primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+// primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | "super" "." IDENTIFIER ;
 func (p *Parser) primary() (expressions.Experssion, error) {
 	switch {
 	case p.match(scanner.FALSE):
@@ -697,6 +709,20 @@ func (p *Parser) primary() (expressions.Experssion, error) {
 		return expressions.This{Keywork: p.previous()}, nil
 	case p.match(scanner.IDENTIFIER):
 		return expressions.Variable{Token: p.previous(), Uuid: varUuid.gen()}, nil
+	case p.match(scanner.SUPER):
+		keyword := p.previous()
+		_, err := p.consume(scanner.DOT, "Expect '.' after 'super'")
+		if err != nil {
+			return nil, err
+		}
+		method, err := p.consume(scanner.IDENTIFIER, "Expect superclass method name after 'super.'")
+		if err != nil {
+			return nil, err
+		}
+		return expressions.Super{
+			Keyword: keyword,
+			Method:  method,
+		}, nil
 	}
 	return expressions.Grouping{}, ErrorParsing
 }
@@ -866,6 +892,11 @@ func (pv PrintVisitor) VisitPropertyAssignment(expr expressions.PropertyAssignme
 
 // not implemented
 func (pv PrintVisitor) VisitThis(expr expressions.This) (interface{}, error) {
+	return nil, nil
+}
+
+// not implemented
+func (pv PrintVisitor) VisitSuper(expr expressions.Super) (interface{}, error) {
 	return nil, nil
 }
 

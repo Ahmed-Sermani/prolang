@@ -84,7 +84,7 @@ func (resolver *Resolver) VisitVairable(expr expressions.Variable) (interface{},
 	if len(resolver.scopes) != 0 {
 		flag, exists := resolver.scopes[len(resolver.scopes)-1][expr.Token.Lexeme]
 		if !flag && exists {
-			// Make it an error to reference a variable in its initializer
+			// Make it an error if reference a variable in its initializer
 			// e.g. let a = 8;
 			// let a = a;
 			reporting.ReportError(expr.Token.Line, fmt.Sprintf("Can't read local variable %s in its own initializer", expr.Token.Lexeme))
@@ -169,6 +169,27 @@ func (resolver *Resolver) VisitClassStmt(stmt statements.ClassStatement) error {
 	resolver.declare(stmt.Name)
 	resolver.define(stmt.Name)
 
+	// detect if the class try to extends itself
+	if stmt.Superclass.Token.Lexeme == stmt.Name.Lexeme {
+		reporting.ReportError(stmt.Name.Line, "Class can't extends itself")
+	}
+
+	// resolve the superclass if exists
+	if stmt.Superclass.Token.Lexeme != "" {
+		resolver.curcls = classenum.SUPCLASS
+		resolver.resolveExpr(stmt.Superclass)
+	}
+
+	// If the class declaration has a superclass,
+	// create a new scope surrounding all of its methods. In that scope, it define "super"
+	if stmt.Superclass.Token.Lexeme != "" {
+		resolver.beginScope()
+		scope := resolver.scopes[len(resolver.scopes)-1]
+		resolver.scopes = resolver.scopes[:len(resolver.scopes)-1]
+		scope["super"] = true
+		resolver.scopes = append(resolver.scopes, scope)
+	}
+
 	// define “this”
 	resolver.beginScope()
 	scope := resolver.scopes[len(resolver.scopes)-1]
@@ -185,6 +206,10 @@ func (resolver *Resolver) VisitClassStmt(stmt statements.ClassStatement) error {
 		resolver.resolveFunction(method, ft)
 	}
 	resolver.endScope()
+	// discard super scope
+	if stmt.Superclass.Token.Lexeme != "" {
+		resolver.endScope()
+	}
 	return nil
 }
 
@@ -242,6 +267,15 @@ func (resolver *Resolver) beginScope() {
 func (resolver *Resolver) endScope() {
 	resolver.scopes = resolver.scopes[:len(resolver.scopes)-1]
 }
+func (resolver *Resolver) VisitSuper(expr expressions.Super) (interface{}, error) {
+	if resolver.curcls == classenum.NONE {
+		reporting.ReportError(expr.Keyword.Line, "Can't use 'super' outside of a class")
+	} else if resolver.curcls == classenum.CLASS {
+		reporting.ReportError(expr.Keyword.Line, "Can't use 'super' with no superclass")
+	}
+	resolver.resolveLocalVar(expr, expr.Keyword.Lexeme)
+	return nil, nil
+}
 
 // adds the variable to the innermost scope so that it shadows
 // any outer one and so that it knows the variable exists.
@@ -284,6 +318,7 @@ func (resolver *Resolver) resolveLocalVar(expr expressions.Experssion, name stri
 		flag := scope[name]
 		if flag {
 			resolver.inter.Resolve(expr, len(resolver.scopes)-1-i)
+			return
 		}
 	}
 }
